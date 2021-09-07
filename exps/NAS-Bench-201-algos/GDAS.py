@@ -40,19 +40,22 @@ class DatasetSplit(Dataset):
         image, label = self.dataset[self.idxs[item]]
         return torch.tensor(image), torch.tensor(label)
 
-def average_weights(w):
+def average_weights(w, arch_personalization):
     """
     Returns the average of the weights.
     """
     w_avg = copy.deepcopy(w[0])
+
     for key in w_avg.keys():
         for i in range(1, len(w)):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key].float(), len(w))
-    return w_avg
+    result = [copy.deepcopy(w_avg) for _ in range(len(w))]
+    if arch_personalization:
+        for i in range(0, len(w)):
+            result[i]['arch_parameters'] = w[i]['arch_parameters']
 
-
-
+    return result
 
 def search_func(
     xloader,
@@ -325,14 +328,18 @@ def main(xargs):
             weight_list.append(weight)
             acc_list.append(valid_a_top1)
 
+        arch_personalize = True
+        personalized_weights = average_weights(weight_list, True)
+        global_weights = average_weights(weight_list, False)
 
-        global_weights = average_weights(weight_list)
+        search_globle_model.load_state_dict(global_weights[0])
 
-        search_globle_model.load_state_dict(global_weights)
-
-        for user in search_model:
-            search_model[user].load_state_dict(global_weights)
-
+        if arch_personalize:
+            for user in search_model:
+                search_model[user].load_state_dict(personalized_weights[user])
+        else:
+            for user in search_model:
+                search_model[user].load_state_dict(global_weights[user])
         search_time.update(time.time() - start_time)
 
         # check the best accuracy
