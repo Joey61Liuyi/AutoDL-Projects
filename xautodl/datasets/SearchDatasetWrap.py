@@ -44,6 +44,7 @@ class SearchDataset(data.Dataset):
         train_index = self.train_split[index]
         valid_index = random.choice(self.valid_split)
         if self.mode_str == "V1":
+            valid_index = self.valid_split[index]
             train_image, train_label = self.data[train_index]
             valid_image, valid_label = self.data[valid_index]
         elif self.mode_str == "V2":

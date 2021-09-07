@@ -13,6 +13,10 @@ from xautodl.config_utils import load_config
 
 from .DownsampledImageNet import ImageNet16
 from .SearchDatasetWrap import SearchDataset
+from xautodl.datasets.partition import data_partition
+from torch.utils.data import DataLoader, Dataset
+import random
+
 
 
 Dataset2Class = {
@@ -25,6 +29,133 @@ Dataset2Class = {
     "ImageNet16-120": 120,
     "ImageNet16-200": 200,
 }
+
+
+class DatasetSplit(Dataset):
+    """An abstract Dataset class wrapped around Pytorch Dataset class.
+    """
+
+    def __init__(self, dataset, idxs):
+        self.dataset = dataset
+        self.idxs = [int(i) for i in idxs]
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, item):
+        image, label = self.dataset[self.idxs[item]]
+        return torch.tensor(image), torch.tensor(label)
+
+def randomSplit(M, N, minV, maxV):
+    res = []
+    while N > 0:
+        l = max(minV, M - (N-1)*maxV)
+        r = min(maxV, M - (N-1)*minV)
+        num = random.randint(l, r)
+        N -= 1
+        M -= num
+        res.append(num)
+    print(res)
+    return res
+
+def uniform(N, k):
+    """Uniform distribution of 'N' items into 'k' groups."""
+    dist = []
+    avg = N / k
+    # Make distribution
+    for i in range(k):
+        dist.append(int((i + 1) * avg) - int(i * avg))
+    # Return shuffled distribution
+    random.shuffle(dist)
+    return dist
+
+def normal(N, k):
+    """Normal distribution of 'N' items into 'k' groups."""
+    dist = []
+    # Make distribution
+    for i in range(k):
+        x = i - (k - 1) / 2
+        dist.append(int(N * (np.exp(-x) / (np.exp(-x) + 1)**2)))
+    # Add remainders
+    remainder = N - sum(dist)
+    dist = list(np.add(dist, uniform(remainder, k)))
+    # Return non-shuffled distribution
+    return dist
+
+
+def data_organize(idxs_labels, labels):
+    data_dict = {}
+
+    labels = np.unique(labels, axis=0)
+    for one in labels:
+        data_dict[one] = []
+
+    for i in range(len(idxs_labels[1, :])):
+        data_dict[idxs_labels[1, i]].append(idxs_labels[0, i])
+    return data_dict
+
+
+def data_partition(training_data, number_of_clients, non_iid_level):
+
+    idxs = np.arange(len(training_data))
+    labels = training_data.targets
+
+    # sort labels
+    idxs_labels = np.vstack((idxs, labels))
+
+    idxs_labels = idxs_labels[:, idxs_labels[1, :].argsort()]
+    labels = np.unique(labels, axis=0)
+    idxs = idxs_labels[0, :]
+    data_dict = data_organize(idxs_labels, labels)
+
+    if non_iid_level == 0:
+        num_items = int(len(training_data)/number_of_clients)
+        data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
+        for i in range(number_of_clients):
+            data_partition_profile[i] = set(np.random.choice(all_idxs, num_items, replace=False))
+            all_idxs = list(set(all_idxs) - data_partition_profile[i])
+
+    else:
+
+        client_dict = {}
+
+        pref_dist = uniform(number_of_clients, len(labels))
+        print(pref_dist)
+        data_dist = uniform(len(training_data), number_of_clients)
+        data_dist.sort(reverse=True)
+        print(data_dist)
+
+        client_list = list(range(number_of_clients))
+        for i in range(len(pref_dist)):
+            while pref_dist[i]>0:
+                client = np.random.choice(client_list, 1, replace=False)[0]
+                client_dict[client] = labels[i]
+                pref_dist[i] -= 1
+                client_list = list(set(client_list) - set([client]))
+
+
+        data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
+
+        for i in range(number_of_clients):
+            pref_number = int(round(data_dist[i] * non_iid_level))
+
+            if pref_number > len(data_dict[client_dict[i]]):
+                pref_number = len(data_dict[client_dict[i]])
+
+            data_dist[i] -= pref_number
+            data_partition_profile[i] = set(np.random.choice(data_dict[client_dict[i]], pref_number, replace=False))
+            all_idxs = list(set(all_idxs) - data_partition_profile[i])
+            data_dict[client_dict[i]] = list(set(data_dict[client_dict[i]]) - data_partition_profile[i])
+
+        for i in range(number_of_clients):
+            rest_idxs = set(np.random.choice(all_idxs, data_dist[i], replace=False))
+            data_partition_profile[i] = set.union(data_partition_profile[i], rest_idxs)
+            all_idxs = list(set(all_idxs) - rest_idxs)
+
+        for one in data_partition_profile:
+            data_partition_profile[one] = list(data_partition_profile[one])
+
+    return data_partition_profile
 
 
 class CUTOUT(object):
@@ -241,6 +372,9 @@ def get_datasets(name, root, cutout):
 def get_nas_search_loaders(
     train_data, valid_data, dataset, config_root, batch_size, workers
 ):
+
+
+
     if isinstance(batch_size, (list, tuple)):
         batch, test_batch = batch_size
     else:
@@ -255,18 +389,34 @@ def get_nas_search_loaders(
         # logger.log('Load split file from {:}'.format(split_Fpath))      # they are two disjoint groups in the original CIFAR-10 training set
         # To split data
         xvalid_data = deepcopy(train_data)
+
+        # random.seed(61)
+        # np.random.seed(61)
+        # user_data = {}
+        # tep = data_partition(train_data, 5, 0.5)
+        # for one in tep:
+        #     a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+        #     user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
+        # np.save('cifar10_non_iid_setting.npy', user_data)
+
+        user_data = np.load('cifar10_non_iid_setting.npy', allow_pickle=True).item()
+
+
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue
             xvalid_data.transforms = valid_data.transform
         xvalid_data.transform = deepcopy(valid_data.transform)
-        search_data = SearchDataset(dataset, train_data, train_split, valid_split)
+
+        search_loader = {}
+        for one in user_data:
+            search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
         # data loader
-        search_loader = torch.utils.data.DataLoader(
-            search_data,
-            batch_size=batch,
-            shuffle=True,
-            num_workers=workers,
-            pin_memory=True,
-        )
+            search_loader[one] = torch.utils.data.DataLoader(
+                search_data,
+                batch_size=batch,
+                shuffle=True,
+                num_workers=workers,
+                pin_memory=True,
+            )
         train_loader = torch.utils.data.DataLoader(
             train_data,
             batch_size=batch,
@@ -281,6 +431,7 @@ def get_nas_search_loaders(
             num_workers=workers,
             pin_memory=True,
         )
+
     elif dataset == "cifar100":
         cifar100_test_split = load_config(
             "{:}/cifar100-test-split.txt".format(config_root), None, None

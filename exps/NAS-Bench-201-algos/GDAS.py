@@ -19,6 +19,39 @@ from xautodl.utils import get_model_infos, obtain_accuracy
 from xautodl.log_utils import AverageMeter, time_string, convert_secs2time
 from xautodl.models import get_cell_based_tiny_net, get_search_spaces
 from nas_201_api import NASBench201API as API
+from torch.utils.data import Dataset
+import copy
+import warnings
+warnings.filterwarnings("ignore")
+
+
+class DatasetSplit(Dataset):
+    """An abstract Dataset class wrapped around Pytorch Dataset class.
+    """
+
+    def __init__(self, dataset, idxs):
+        self.dataset = dataset
+        self.idxs = [int(i) for i in idxs]
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, item):
+        image, label = self.dataset[self.idxs[item]]
+        return torch.tensor(image), torch.tensor(label)
+
+def average_weights(w):
+    """
+    Returns the average of the weights.
+    """
+    w_avg = copy.deepcopy(w[0])
+    for key in w_avg.keys():
+        for i in range(1, len(w)):
+            w_avg[key] += w[i][key]
+        w_avg[key] = torch.div(w_avg[key].float(), len(w))
+    return w_avg
+
+
 
 
 def search_func(
@@ -102,6 +135,7 @@ def search_func(
         arch_losses.avg,
         arch_top1.avg,
         arch_top5.avg,
+        network.state_dict()
     )
 
 
@@ -125,7 +159,7 @@ def main(xargs):
         train_data,
         valid_data,
         xargs.dataset,
-        "configs/nas-benchmark/",
+        "../../configs/nas-benchmark/",
         config.batch_size,
         xargs.workers,
     )
@@ -242,44 +276,57 @@ def main(xargs):
                 epoch_str, need_time, search_model.get_tau(), min(w_scheduler.get_lr())
             )
         )
+        weight_list = []
+        acc_list = []
+        for user in search_loader:
+            (   search_w_loss,
+                search_w_top1,
+                search_w_top5,
+                valid_a_loss,
+                valid_a_top1,
+                valid_a_top5,
+                weight
+            ) = search_func(
+                search_loader[user],
+                copy.deepcopy(network),
+                criterion,
+                w_scheduler,
+                w_optimizer,
+                a_optimizer,
+                epoch_str,
+                xargs.print_freq,
+                logger,
+            )
 
-        (
-            search_w_loss,
-            search_w_top1,
-            search_w_top5,
-            valid_a_loss,
-            valid_a_top1,
-            valid_a_top5,
-        ) = search_func(
-            search_loader,
-            network,
-            criterion,
-            w_scheduler,
-            w_optimizer,
-            a_optimizer,
-            epoch_str,
-            xargs.print_freq,
-            logger,
-        )
+            logger.log(
+                "User {} : [{:}] searching : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%, time-cost={:.1f} s".format(
+                    user, epoch_str, search_w_loss, search_w_top1, search_w_top5, search_time.sum
+                )
+            )
+            logger.log(
+                "User {} : [{:}] evaluate  : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%".format(
+                    user, epoch_str, valid_a_loss, valid_a_top1, valid_a_top5
+                )
+            )
+
+            weight_list.append(weight)
+            acc_list.append(valid_a_top1)
+
+
+        global_weights = average_weights(weight_list)
+
+        network.load_state_dict(global_weights)
+
         search_time.update(time.time() - start_time)
-        logger.log(
-            "[{:}] searching : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%, time-cost={:.1f} s".format(
-                epoch_str, search_w_loss, search_w_top1, search_w_top5, search_time.sum
-            )
-        )
-        logger.log(
-            "[{:}] evaluate  : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%".format(
-                epoch_str, valid_a_loss, valid_a_top1, valid_a_top5
-            )
-        )
+
         # check the best accuracy
         valid_accuracies[epoch] = valid_a_top1
-        if valid_a_top1 > valid_accuracies["best"]:
-            valid_accuracies["best"] = valid_a_top1
-            genotypes["best"] = search_model.genotype()
-            find_best = True
-        else:
-            find_best = False
+        # if valid_a_top1 > valid_accuracies["best"]:
+        #     valid_accuracies["best"] = valid_a_top1
+        #     genotypes["best"] = search_model.genotype()
+        #     find_best = True
+        # else:
+        #     find_best = False
 
         genotypes[epoch] = search_model.genotype()
         logger.log(
@@ -309,13 +356,13 @@ def main(xargs):
             logger.path("info"),
             logger,
         )
-        if find_best:
-            logger.log(
-                "<<<--->>> The {:}-th epoch : find the highest validation accuracy : {:.2f}%.".format(
-                    epoch_str, valid_a_top1
-                )
-            )
-            copy_checkpoint(model_base_path, model_best_path, logger)
+        # if find_best:
+        #     logger.log(
+        #         "<<<--->>> The {:}-th epoch : find the highest validation accuracy : {:.2f}%.".format(
+        #             epoch_str, valid_a_top1
+        #         )
+        #     )
+        #     copy_checkpoint(model_base_path, model_best_path, logger)
         with torch.no_grad():
             logger.log("{:}".format(search_model.show_alphas()))
         if api is not None:
@@ -337,29 +384,34 @@ def main(xargs):
 
 
 if __name__ == "__main__":
+
+    dataset = 'cifar10'
+
     parser = argparse.ArgumentParser("GDAS")
-    parser.add_argument("--data_path", type=str, help="The path to dataset")
+    parser.add_argument("--data_path", type=str, default= '../../../data/{}'.format(dataset),help="The path to dataset")
     parser.add_argument(
         "--dataset",
         type=str,
+        default = dataset,
         choices=["cifar10", "cifar100", "ImageNet16-120"],
         help="Choose between Cifar10/100 and ImageNet-16.",
     )
     # channels and number-of-cells
-    parser.add_argument("--search_space_name", type=str, help="The search space name.")
-    parser.add_argument("--max_nodes", type=int, help="The maximum number of nodes.")
-    parser.add_argument("--channel", type=int, help="The number of channels.")
+    parser.add_argument("--search_space_name", type=str, default= 'nas-bench-201',help="The search space name.")
+    parser.add_argument("--max_nodes", type=int, default=4, help="The maximum number of nodes.")
+    parser.add_argument("--channel", type=int, default=16, help="The number of channels.")
     parser.add_argument(
-        "--num_cells", type=int, help="The number of cells in one stage."
+        "--num_cells", type=int, default=2, help="The number of cells in one stage."
     )
     parser.add_argument(
         "--track_running_stats",
         type=int,
+        default = 1,
         choices=[0, 1],
         help="Whether use track_running_stats or not in the BN layer.",
     )
     parser.add_argument(
-        "--config_path", type=str, help="The path of the configuration."
+        "--config_path", type=str, default= '../../configs/nas-benchmark/algos/GDAS.config',help="The path of the configuration."
     )
     parser.add_argument(
         "--model_config",
@@ -379,25 +431,26 @@ if __name__ == "__main__":
         default=1e-3,
         help="weight decay for arch encoding",
     )
-    parser.add_argument("--tau_min", type=float, help="The minimum tau for Gumbel")
-    parser.add_argument("--tau_max", type=float, help="The maximum tau for Gumbel")
+    parser.add_argument("--tau_min", type=float, default=0.1, help="The minimum tau for Gumbel")
+    parser.add_argument("--tau_max", type=float, default=10, help="The maximum tau for Gumbel")
     # log
     parser.add_argument(
         "--workers",
         type=int,
-        default=2,
+        default=4,
         help="number of data loading workers (default: 2)",
     )
     parser.add_argument(
-        "--save_dir", type=str, help="Folder to save checkpoints and log."
+        "--save_dir", type=str, default = './output/search-cell-nas-bench-201/GDAS-{}-BN1'.format(dataset), help="Folder to save checkpoints and log."
     )
     parser.add_argument(
         "--arch_nas_dataset",
+        default=None,
         type=str,
         help="The path to load the architecture dataset (tiny-nas-benchmark).",
     )
-    parser.add_argument("--print_freq", type=int, help="print frequency (default: 200)")
-    parser.add_argument("--rand_seed", type=int, help="manual seed")
+    parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
+    parser.add_argument("--rand_seed", type=int, default= -1, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
