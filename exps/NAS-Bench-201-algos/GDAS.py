@@ -328,18 +328,18 @@ def main(xargs):
             weight_list.append(weight)
             acc_list.append(valid_a_top1)
 
-        arch_personalize = True
-        personalized_weights = average_weights(weight_list, True)
-        global_weights = average_weights(weight_list, False)
+        arch_personalize = False
+        # personalized_weights = average_weights(weight_list, True)
+        # global_weights = average_weights(weight_list, False)
+        #
+        # search_globle_model.load_state_dict(global_weights[0])
 
-        search_globle_model.load_state_dict(global_weights[0])
-
-        if arch_personalize:
-            for user in search_model:
-                search_model[user].load_state_dict(personalized_weights[user])
-        else:
-            for user in search_model:
-                search_model[user].load_state_dict(global_weights[user])
+        # if arch_personalize:
+        #     for user in search_model:
+        #         search_model[user].load_state_dict(personalized_weights[user])
+        # else:
+        #     for user in search_model:
+        #         search_model[user].load_state_dict(global_weights[user])
         search_time.update(time.time() - start_time)
 
         # check the best accuracy
@@ -473,7 +473,7 @@ if __name__ == "__main__":
         help="The path to load the architecture dataset (tiny-nas-benchmark).",
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
-    parser.add_argument("--rand_seed", type=int, default= -1, help="manual seed")
+    parser.add_argument("--rand_seed", type=int, default= 616161, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
