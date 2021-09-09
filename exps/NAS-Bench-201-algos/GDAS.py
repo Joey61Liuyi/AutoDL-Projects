@@ -45,17 +45,17 @@ def average_weights(w, arch_personalization):
     Returns the average of the weights.
     """
     w_avg = copy.deepcopy(w[0])
-
+    arch_result = {}
     for key in w_avg.keys():
         for i in range(1, len(w)):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key].float(), len(w))
-    result = [copy.deepcopy(w_avg) for _ in range(len(w))]
+    # result = [copy.deepcopy(w_avg) for _ in range(len(w))]
     if arch_personalization:
         for i in range(0, len(w)):
-            result[i]['arch_parameters'] = w[i]['arch_parameters']
+            arch_result[i] = w[i]['arch_parameters']
 
-    return result
+    return w_avg, arch_result
 
 def search_func(
     xloader,
@@ -67,6 +67,7 @@ def search_func(
     epoch_str,
     print_freq,
     logger,
+    local_epoch
 ):
     # network, criterion = torch.nn.DataParallel(search_model).cuda(), criterion.cuda()
     data_time, batch_time = AverageMeter(), AverageMeter()
@@ -75,7 +76,7 @@ def search_func(
     network.train()
     end = time.time()
 
-    for i in range(5):
+    for _ in range(local_epoch):
         for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
             xloader
         ):
@@ -208,6 +209,7 @@ def main(xargs):
     a_optimizer = {}
     w_scheduler = {}
     a_scheduler = {}
+    valid_accuracies, genotypes = {}, {}
 
     search_globle_model = get_cell_based_tiny_net(model_config).cuda()
     for one in search_loader:
@@ -215,6 +217,10 @@ def main(xargs):
         search_model[one].load_state_dict(search_globle_model.state_dict())
         w_optimizer[one], w_scheduler[one], criterion = get_optim_scheduler(search_model[one].get_weights(), config)
         a_optimizer[one] = torch.optim.Adam( search_model[one].get_alphas(), lr=xargs.arch_learning_rate, betas=(0.5, 0.999), weight_decay=xargs.arch_weight_decay,)
+        valid_accuracies[one], genotypes[one] = (
+            {"best": -1},
+            {-1: search_model[one].genotype()},
+        )
 
 
     criterion = criterion.cuda()
@@ -261,11 +267,8 @@ def main(xargs):
     #     )
     # else:
     logger.log("=> do not find the last-info file : {:}".format(last_info))
-    start_epoch, valid_accuracies, genotypes = (
-        0,
-        {"best": -1},
-        {-1: search_globle_model.genotype()},
-    )
+    start_epoch = 0
+
 
     # start training
     start_time, search_time, epoch_time, total_epoch = (
@@ -274,6 +277,7 @@ def main(xargs):
         AverageMeter(),
         config.epochs + config.warmup,
     )
+    local_epoch = args.local_epoch
     for epoch in range(start_epoch, total_epoch):
 
         for user in w_scheduler:
@@ -312,6 +316,7 @@ def main(xargs):
                 epoch_str,
                 xargs.print_freq,
                 logger,
+                local_epoch
             )
 
             logger.log(
@@ -328,22 +333,28 @@ def main(xargs):
             weight_list.append(weight)
             acc_list.append(valid_a_top1)
 
-        arch_personalize = False
-        # personalized_weights = average_weights(weight_list, True)
-        # global_weights = average_weights(weight_list, False)
-        #
-        # search_globle_model.load_state_dict(global_weights[0])
+            valid_accuracies[user][epoch] = valid_a_top1
+            genotypes[user][epoch] = search_model[user].genotype()
 
-        # if arch_personalize:
-        #     for user in search_model:
-        #         search_model[user].load_state_dict(personalized_weights[user])
-        # else:
-        #     for user in search_model:
-        #         search_model[user].load_state_dict(global_weights[user])
+        arch_personalize = True
+        weight_average, arch_list = average_weights(weight_list, arch_personalize)
+
+        for user in search_model:
+            if arch_personalize:
+                tep = copy.deepcopy(weight_average)
+                tep['arch_parameters'] = arch_list[user]
+                search_model[user].load_state_dict(tep)
+            else:
+                search_model[user].load_state_dict(weight_average)
+
+            logger.log(
+                "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, search_model[user].genotype())
+            )
+
         search_time.update(time.time() - start_time)
 
         # check the best accuracy
-        valid_accuracies[epoch] = valid_a_top1
+
         # if valid_a_top1 > valid_accuracies["best"]:
         #     valid_accuracies["best"] = valid_a_top1
         #     genotypes["best"] = search_model.genotype()
@@ -351,10 +362,7 @@ def main(xargs):
         # else:
         #     find_best = False
 
-        genotypes[epoch] = search_globle_model.genotype()
-        logger.log(
-            "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, genotypes[epoch])
-        )
+
         # save checkpoint
         # save_path = save_checkpoint(
         #     {
@@ -386,13 +394,35 @@ def main(xargs):
         #         )
         #     )
         #     copy_checkpoint(model_base_path, model_best_path, logger)
-        with torch.no_grad():
-            logger.log("{:}".format(search_globle_model.show_alphas()))
-        if api is not None:
-            logger.log("{:}".format(api.query_by_arch(genotypes[epoch], "200")))
+        # with torch.no_grad():
+        #     logger.log("{:}".format(search_globle_model.show_alphas()))
+        # if api is not None:
+        #     logger.log("{:}".format(api.query_by_arch(genotypes[epoch], "200")))
         # measure elapsed time
         epoch_time.update(time.time() - start_time)
         start_time = time.time()
+
+    # save checkpoint
+
+    for user in search_model:
+
+        model_base_path = logger.model_dir / "User{:}-acc-{}-basic-seed-{:}.pth".format(user, valid_accuracies[user][epoch],args.rand_seed)
+
+        save_path = save_checkpoint(
+            {
+                "epoch": epoch + 1,
+                "args": deepcopy(xargs),
+                "search_model": search_model[user].state_dict(),
+                "w_optimizer": w_optimizer[user].state_dict(),
+                "a_optimizer": a_optimizer[user].state_dict(),
+                "w_scheduler": w_scheduler[user].state_dict(),
+                "genotypes": search_model[user].genotype(),
+                "valid_accuracies": valid_accuracies[user],
+            },
+            model_base_path,
+            logger,
+        )
+
 
     logger.log("\n" + "-" * 100)
     # check the performance from the architecture dataset
@@ -473,7 +503,8 @@ if __name__ == "__main__":
         help="The path to load the architecture dataset (tiny-nas-benchmark).",
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
-    parser.add_argument("--rand_seed", type=int, default= 616161, help="manual seed")
+    parser.add_argument("--local_epoch", type=int, default=1, help="local_epochs for edge nodes")
+    parser.add_argument("--rand_seed", type=int, default= -1, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
