@@ -438,16 +438,16 @@ def get_nas_search_loaders(
         )
         search_train_data = train_data
 
-        # random.seed(61)
-        # np.random.seed(61)
-        # user_data = {}
-        # tep = data_partition(train_data, 5, 0.5)
-        #
-        # for one in tep:
-        #     a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-        #     user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
-        #
-        # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
+        random.seed(61)
+        np.random.seed(61)
+        user_data = {}
+        tep = data_partition(train_data, 5, 0.5)
+
+        for one in tep:
+            a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+            user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
+
+        np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
 
         user_data = np.load('{}_non_iid_setting.npy'.format(dataset), allow_pickle=True).item()
 

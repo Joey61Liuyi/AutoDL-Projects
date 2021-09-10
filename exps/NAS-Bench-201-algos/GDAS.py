@@ -20,6 +20,8 @@ from xautodl.log_utils import AverageMeter, time_string, convert_secs2time
 from xautodl.models import get_cell_based_tiny_net, get_search_spaces
 from nas_201_api import NASBench201API as API
 from torch.utils.data import Dataset
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 import copy
 import warnings
 warnings.filterwarnings("ignore")
@@ -434,6 +436,15 @@ def main(xargs):
     #     logger.log("{:}".format(api.query_by_arch(genotypes[total_epoch - 1], "200")))
 
     logger.close()
+
+    gauth = GoogleAuth()
+    drive = GoogleDrive(gauth)
+    upload_file_list = [logger.logger_path]
+    for upload_file in upload_file_list:
+        gfile = drive.CreateFile({'parents': [{'id': '1B7btb5VBlWNppuNCjo6b4F4-byZqDJV5'}]})
+        # Read file and set it as a content of this instance.
+        gfile.SetContentFile(upload_file)
+        gfile.Upload()  # Upload the file.
 
 
 if __name__ == "__main__":
