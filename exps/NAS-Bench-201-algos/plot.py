@@ -14,9 +14,9 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 import re
 
-file1 = 'self.log'
-file2 = 'FL.log'
-file3 = 'PA.log'
+file1 = 'cifar100_individual.log'
+file2 = 'cifar100_FL.log'
+file3 = 'cifar100_PFL.log'
 
 
 tep = pd.DataFrame()

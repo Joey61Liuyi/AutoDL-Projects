@@ -227,7 +227,6 @@ def main(xargs):
     logger.log("search-model :\n{:}".format(search_globle_model))
     logger.log("model-config : {:}".format(model_config))
 
-
     # logger.log("w-optimizer : {:}".format(w_optimizer))
     # logger.log("a-optimizer : {:}".format(a_optimizer))
     # logger.log("w-scheduler : {:}".format(w_scheduler))
@@ -336,16 +335,16 @@ def main(xargs):
             valid_accuracies[user][epoch] = valid_a_top1
             genotypes[user][epoch] = search_model[user].genotype()
 
-        arch_personalize = True
-        weight_average, arch_list = average_weights(weight_list, arch_personalize)
+        # arch_personalize = True
+        # weight_average, arch_list = average_weights(weight_list, arch_personalize)
 
         for user in search_model:
-            if arch_personalize:
-                tep = copy.deepcopy(weight_average)
-                tep['arch_parameters'] = arch_list[user]
-                search_model[user].load_state_dict(tep)
-            else:
-                search_model[user].load_state_dict(weight_average)
+            # if arch_personalize:
+            #     tep = copy.deepcopy(weight_average)
+            #     tep['arch_parameters'] = arch_list[user]
+            #     search_model[user].load_state_dict(tep)
+            # else:
+            #     search_model[user].load_state_dict(weight_average)
 
             logger.log(
                 "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, search_model[user].genotype())
@@ -421,24 +420,25 @@ def main(xargs):
             },
             model_base_path,
             logger,
+
         )
 
+    # logger.log("\n" + "-" * 100)
+    # # check the performance from the architecture dataset
+    # logger.log(
+    #     "GDAS : run {:} epochs, cost {:.1f} s, last-geno is {:}.".format(
+    #         total_epoch, search_time.sum, genotypes[total_epoch - 1]
+    #     )
+    # )
+    # if api is not None:
+    #     logger.log("{:}".format(api.query_by_arch(genotypes[total_epoch - 1], "200")))
 
-    logger.log("\n" + "-" * 100)
-    # check the performance from the architecture dataset
-    logger.log(
-        "GDAS : run {:} epochs, cost {:.1f} s, last-geno is {:}.".format(
-            total_epoch, search_time.sum, genotypes[total_epoch - 1]
-        )
-    )
-    if api is not None:
-        logger.log("{:}".format(api.query_by_arch(genotypes[total_epoch - 1], "200")))
     logger.close()
 
 
 if __name__ == "__main__":
 
-    dataset = 'cifar10'
+    dataset = 'cifar100'
 
     parser = argparse.ArgumentParser("GDAS")
     parser.add_argument("--data_path", type=str, default= '../../../data/{}'.format(dataset),help="The path to dataset")
@@ -503,8 +503,8 @@ if __name__ == "__main__":
         help="The path to load the architecture dataset (tiny-nas-benchmark).",
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
-    parser.add_argument("--local_epoch", type=int, default=1, help="local_epochs for edge nodes")
-    parser.add_argument("--rand_seed", type=int, default= -1, help="manual seed")
+    parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
+    parser.add_argument("--rand_seed", type=int, default= 6161, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)

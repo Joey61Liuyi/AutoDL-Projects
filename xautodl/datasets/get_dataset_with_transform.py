@@ -437,21 +437,49 @@ def get_nas_search_loaders(
             "{:}/cifar100-test-split.txt".format(config_root), None, None
         )
         search_train_data = train_data
+
+        # random.seed(61)
+        # np.random.seed(61)
+        # user_data = {}
+        # tep = data_partition(train_data, 5, 0.5)
+        #
+        # for one in tep:
+        #     a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+        #     user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
+        #
+        # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
+
+        user_data = np.load('{}_non_iid_setting.npy'.format(dataset), allow_pickle=True).item()
+
         search_valid_data = deepcopy(valid_data)
         search_valid_data.transform = train_data.transform
-        search_data = SearchDataset(
-            dataset,
-            [search_train_data, search_valid_data],
-            list(range(len(search_train_data))),
-            cifar100_test_split.xvalid,
-        )
-        search_loader = torch.utils.data.DataLoader(
-            search_data,
-            batch_size=batch,
-            shuffle=True,
-            num_workers=workers,
-            pin_memory=True,
-        )
+
+        search_loader = {}
+        for one in user_data:
+            search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
+        # data loader
+            search_loader[one] = torch.utils.data.DataLoader(
+                search_data,
+                batch_size=batch,
+                shuffle=True,
+                num_workers=workers,
+                pin_memory=True,
+            )
+
+
+        # search_data = SearchDataset(
+        #     dataset,
+        #     [search_train_data, search_valid_data],
+        #     list(range(len(search_train_data))),
+        #     cifar100_test_split.xvalid,
+        # )
+        # search_loader = torch.utils.data.DataLoader(
+        #     search_data,
+        #     batch_size=batch,
+        #     shuffle=True,
+        #     num_workers=workers,
+        #     pin_memory=True,
+        # )
         train_loader = torch.utils.data.DataLoader(
             train_data,
             batch_size=batch,
