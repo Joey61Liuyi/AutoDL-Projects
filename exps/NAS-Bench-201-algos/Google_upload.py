@@ -12,7 +12,7 @@ drive = GoogleDrive(gauth)
 #   print('title: %s, id: %s' % (file1['title'], file1['id']))
 
 # Upload files to your Google Drive
-upload_file_list = ['plot.py', 'PA.log']
+upload_file_list = ['cifar100_non_iid_setting.npy', 'cifar10_non_iid_setting.npy']
 for upload_file in upload_file_list:
     gfile = drive.CreateFile({'parents': [{'id': '1B7btb5VBlWNppuNCjo6b4F4-byZqDJV5'}]})
     # Read file and set it as a content of this instance.

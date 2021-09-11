@@ -13,7 +13,6 @@ from xautodl.config_utils import load_config
 
 from .DownsampledImageNet import ImageNet16
 from .SearchDatasetWrap import SearchDataset
-from xautodl.datasets.partition import data_partition
 from torch.utils.data import DataLoader, Dataset
 import random
 
@@ -95,8 +94,9 @@ def data_organize(idxs_labels, labels):
     return data_dict
 
 
-def data_partition(training_data, number_of_clients, non_iid_level):
+def data_partition(training_data, client_dict, non_iid_level):
 
+    number_of_clients = len(client_dict)
     idxs = np.arange(len(training_data))
     labels = training_data.targets
 
@@ -116,23 +116,9 @@ def data_partition(training_data, number_of_clients, non_iid_level):
             all_idxs = list(set(all_idxs) - data_partition_profile[i])
 
     else:
-
-        client_dict = {}
-
-        pref_dist = uniform(number_of_clients, len(labels))
-        print(pref_dist)
         data_dist = uniform(len(training_data), number_of_clients)
         data_dist.sort(reverse=True)
         print(data_dist)
-
-        client_list = list(range(number_of_clients))
-        for i in range(len(pref_dist)):
-            while pref_dist[i]>0:
-                client = np.random.choice(client_list, 1, replace=False)[0]
-                client_dict[client] = labels[i]
-                pref_dist[i] -= 1
-                client_list = list(set(client_list) - set([client]))
-
 
         data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
 
@@ -399,6 +385,34 @@ def get_nas_search_loaders(
         #     user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
         # np.save('cifar10_non_iid_setting.npy', user_data)
 
+        # random.seed(61)
+        # np.random.seed(61)
+        # user_data = {}
+        # client_dict = {}
+        #
+        # labels = train_data.targets
+        # labels = np.unique(labels, axis=0)
+        # pref_dist = uniform(5, len(labels))
+        # print(pref_dist)
+        # client_list = list(range(5))
+        #
+        # for i in range(len(pref_dist)):
+        #     while pref_dist[i] > 0:
+        #         client = np.random.choice(client_list, 1, replace=False)[0]
+        #         client_dict[client] = labels[i]
+        #         pref_dist[i] -= 1
+        #         client_list = list(set(client_list) - set([client]))
+        #
+        # tep_train = data_partition(train_data, client_dict, 0.5)
+        # tep_valid = data_partition(valid_data, client_dict, 0.5)
+        #
+        # for one in tep_train:
+        #     # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+        #     user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
+        #
+        # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
+
+
         user_data = np.load('cifar10_non_iid_setting.npy', allow_pickle=True).item()
 
 
@@ -408,7 +422,7 @@ def get_nas_search_loaders(
 
         search_loader = {}
         for one in user_data:
-            search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
+            search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
         # data loader
             search_loader[one] = torch.utils.data.DataLoader(
                 search_data,
@@ -436,18 +450,34 @@ def get_nas_search_loaders(
         cifar100_test_split = load_config(
             "{:}/cifar100-test-split.txt".format(config_root), None, None
         )
-        search_train_data = train_data
+        # search_train_data = train_data
 
-        random.seed(61)
-        np.random.seed(61)
-        user_data = {}
-        tep = data_partition(train_data, 5, 0.5)
-
-        for one in tep:
-            a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-            user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
-
-        np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
+        # random.seed(61)
+        # np.random.seed(61)
+        # user_data = {}
+        # client_dict = {}
+        #
+        # labels = search_train_data.targets
+        # labels = np.unique(labels, axis=0)
+        # pref_dist = uniform(5, len(labels))
+        # print(pref_dist)
+        # client_list = list(range(5))
+        #
+        # for i in range(len(pref_dist)):
+        #     while pref_dist[i] > 0:
+        #         client = np.random.choice(client_list, 1, replace=False)[0]
+        #         client_dict[client] = labels[i]
+        #         pref_dist[i] -= 1
+        #         client_list = list(set(client_list) - set([client]))
+        #
+        # tep_train = data_partition(train_data, client_dict, 0.5)
+        # tep_valid = data_partition(valid_data, client_dict, 0.5)
+        #
+        # for one in tep_train:
+        #     # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+        #     user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
+        #
+        # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
 
         user_data = np.load('{}_non_iid_setting.npy'.format(dataset), allow_pickle=True).item()
 
@@ -456,7 +486,7 @@ def get_nas_search_loaders(
 
         search_loader = {}
         for one in user_data:
-            search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
+            search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
         # data loader
             search_loader[one] = torch.utils.data.DataLoader(
                 search_data,
@@ -537,6 +567,6 @@ def get_nas_search_loaders(
     return search_loader, train_loader, valid_loader
 
 
-# if __name__ == '__main__':
-#  train_data, test_data, xshape, class_num = dataset = get_datasets('cifar10', '/data02/dongxuanyi/.torch/cifar.python/', -1)
-#  import pdb; pdb.set_trace()
+if __name__ == '__main__':
+    train_data, test_data, xshape, class_num = dataset = get_datasets('cifar10', '/data02/dongxuanyi/.torch/cifar.python/', -1)
+    data_partition(train_data, test_data, 5)

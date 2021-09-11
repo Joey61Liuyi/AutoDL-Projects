@@ -337,16 +337,16 @@ def main(xargs):
             valid_accuracies[user][epoch] = valid_a_top1
             genotypes[user][epoch] = search_model[user].genotype()
 
-        # arch_personalize = True
-        # weight_average, arch_list = average_weights(weight_list, arch_personalize)
+        arch_personalize = args.personalize_arch
+        weight_average, arch_list = average_weights(weight_list, arch_personalize)
 
         for user in search_model:
-            # if arch_personalize:
-            #     tep = copy.deepcopy(weight_average)
-            #     tep['arch_parameters'] = arch_list[user]
-            #     search_model[user].load_state_dict(tep)
-            # else:
-            #     search_model[user].load_state_dict(weight_average)
+            if arch_personalize:
+                tep = copy.deepcopy(weight_average)
+                tep['arch_parameters'] = arch_list[user]
+                search_model[user].load_state_dict(tep)
+            else:
+                search_model[user].load_state_dict(weight_average)
 
             logger.log(
                 "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, search_model[user].genotype())
@@ -439,7 +439,7 @@ def main(xargs):
 
     gauth = GoogleAuth()
     drive = GoogleDrive(gauth)
-    upload_file_list = [logger.logger_path]
+    upload_file_list = [str(logger.logger_path)]
     for upload_file in upload_file_list:
         gfile = drive.CreateFile({'parents': [{'id': '1B7btb5VBlWNppuNCjo6b4F4-byZqDJV5'}]})
         # Read file and set it as a content of this instance.
@@ -449,7 +449,7 @@ def main(xargs):
 
 if __name__ == "__main__":
 
-    dataset = 'cifar100'
+    dataset = 'cifar10'
 
     parser = argparse.ArgumentParser("GDAS")
     parser.add_argument("--data_path", type=str, default= '../../../data/{}'.format(dataset),help="The path to dataset")
@@ -515,7 +515,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
-    parser.add_argument("--rand_seed", type=int, default= 6161, help="manual seed")
+    parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
+    parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
+    parser.add_argument("--rand_seed", type=int, default=-1, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
