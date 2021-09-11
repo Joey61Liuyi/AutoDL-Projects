@@ -6,6 +6,10 @@
 import sys, time, random, argparse
 from copy import deepcopy
 import torch
+
+import sys
+sys.path.append("../..")
+
 from xautodl.config_utils import load_config, dict2config
 from xautodl.datasets import get_datasets, get_nas_search_loaders
 from xautodl.procedures import (
