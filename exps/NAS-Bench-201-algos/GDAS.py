@@ -554,7 +554,7 @@ if __name__ == "__main__":
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
     parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
     parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
-    parser.add_argument("--rand_seed", type=int, default=-1, help="manual seed")
+    parser.add_argument("--rand_seed", type=int, default=610914, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
