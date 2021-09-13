@@ -14,15 +14,15 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 import re
 
-file1 = 'cifar100_individual.log'
-file2 = 'cifar100_FL.log'
-file3 = 'cifar100_PFL.log'
+file1 = 'Cifar100P.log'
+file2 = 'cifar100NP.log'
+# file3 = 'cifar100_PFL.log'
 
 
 tep = pd.DataFrame()
 
 
-for file in [file1, file2, file3]:
+for file in [file1, file2]:
     result = []
     for user in range(5):
         result.append([])
@@ -40,7 +40,7 @@ for file in [file1, file2, file3]:
     result['avg'] = result.mean(axis = 1)
     tep[file] = result['avg']
 
-tep.columns = ['without aggregation', 'Traditional FL', 'Personalize Arch']
+tep.columns = ['Personalize Arch', 'Traditional FL']
 
 tep.plot()
 plt.show()

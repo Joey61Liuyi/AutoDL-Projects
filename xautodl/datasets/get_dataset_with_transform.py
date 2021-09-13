@@ -359,37 +359,28 @@ def get_nas_search_loaders(
     train_data, valid_data, dataset, config_root, batch_size, workers
 ):
 
-
-
+    valid_use = False
     if isinstance(batch_size, (list, tuple)):
         batch, test_batch = batch_size
     else:
         batch, test_batch = batch_size, batch_size
-    if dataset == "cifar10":
+    if dataset == "cifar10" or dataset == 'cifar100':
         # split_Fpath = 'configs/nas-benchmark/cifar-split.txt'
-        cifar_split = load_config("{:}/cifar-split.txt".format(config_root), None, None)
-        train_split, valid_split = (
-            cifar_split.train,
-            cifar_split.valid,
-        )  # search over the proposed training and validation set
+        # cifar_split = load_config("{:}/cifar-split.txt".format(config_root), None, None)
+        # train_split, valid_split = (
+        #     cifar_split.train,
+        #     cifar_split.valid,
+        # )  # search over the proposed training and validation set
         # logger.log('Load split file from {:}'.format(split_Fpath))      # they are two disjoint groups in the original CIFAR-10 training set
         # To split data
         xvalid_data = deepcopy(train_data)
-
-        # random.seed(61)
-        # np.random.seed(61)
-        # user_data = {}
-        # tep = data_partition(train_data, 5, 0.5)
-        # for one in tep:
-        #     a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-        #     user_data[one] = {'train': list(set(a)), 'test': list(set(tep[one])-set(a))}
-        # np.save('cifar10_non_iid_setting.npy', user_data)
-
-        # random.seed(61)
-        # np.random.seed(61)
-        # user_data = {}
-        # client_dict = {}
         #
+        # random.seed(61)
+        # np.random.seed(61)
+        user_data = {}
+
+        # set the non-iid pref
+        # client_dict = {}
         # labels = train_data.targets
         # labels = np.unique(labels, axis=0)
         # pref_dist = uniform(5, len(labels))
@@ -407,22 +398,45 @@ def get_nas_search_loaders(
         # tep_valid = data_partition(valid_data, client_dict, 0.5)
         #
         # for one in tep_train:
-        #     # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-        #     user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
+        #     if valid_use:
+        #         # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+        #         user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
+        #     else:
+        #         a = np.random.choice(tep_train[one], int(len(tep_train[one]) / 2), replace=False)
+        #         user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
         #
-        # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
-
-
-        user_data = np.load('cifar10_non_iid_setting.npy', allow_pickle=True).item()
-
+        # np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
+        user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), allow_pickle=True).item()
 
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue
             xvalid_data.transforms = valid_data.transform
         xvalid_data.transform = deepcopy(valid_data.transform)
 
         search_loader = {}
+        valid_loader = {}
+        train_loader = {}
+
         for one in user_data:
-            search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
+            if valid_use:
+                search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
+                valid_loader[one] = torch.utils.data.DataLoader(
+                    xvalid_data,
+                    batch_size=test_batch,
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['test']),
+                    num_workers=workers,
+                    pin_memory=True,
+                )
+            else:
+                search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
+                valid_loader[one] = torch.utils.data.DataLoader(
+                    xvalid_data,
+                    batch_size=test_batch,
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['valid']),
+                    num_workers=workers,
+                    pin_memory=True,
+                )
+
+
         # data loader
             search_loader[one] = torch.utils.data.DataLoader(
                 search_data,
@@ -431,25 +445,18 @@ def get_nas_search_loaders(
                 num_workers=workers,
                 pin_memory=True,
             )
-        train_loader = torch.utils.data.DataLoader(
-            train_data,
-            batch_size=batch,
-            sampler=torch.utils.data.sampler.SubsetRandomSampler(train_split),
-            num_workers=workers,
-            pin_memory=True,
-        )
-        valid_loader = torch.utils.data.DataLoader(
-            xvalid_data,
-            batch_size=test_batch,
-            sampler=torch.utils.data.sampler.SubsetRandomSampler(valid_split),
-            num_workers=workers,
-            pin_memory=True,
-        )
+            train_loader[one] = torch.utils.data.DataLoader(
+                train_data,
+                batch_size=batch,
+                sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['train']),
+                num_workers=workers,
+                pin_memory=True,
+            )
 
-    elif dataset == "cifar100":
-        cifar100_test_split = load_config(
-            "{:}/cifar100-test-split.txt".format(config_root), None, None
-        )
+    # elif dataset == "cifar100":
+        # cifar100_test_split = load_config(
+        #     "{:}/cifar100-test-split.txt".format(config_root), None, None
+        # )
         # search_train_data = train_data
 
         # random.seed(61)
@@ -479,23 +486,23 @@ def get_nas_search_loaders(
         #
         # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
 
-        user_data = np.load('{}_non_iid_setting.npy'.format(dataset), allow_pickle=True).item()
-
-        search_valid_data = deepcopy(valid_data)
-        search_valid_data.transform = train_data.transform
-
-        search_loader = {}
-        for one in user_data:
-            search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
-        # data loader
-            search_loader[one] = torch.utils.data.DataLoader(
-                search_data,
-                batch_size=batch,
-                shuffle=True,
-                num_workers=workers,
-                pin_memory=True,
-            )
-
+        # user_data = np.load('{}_non_iid_setting.npy'.format(dataset), allow_pickle=True).item()
+        #
+        # search_valid_data = deepcopy(valid_data)
+        # search_valid_data.transform = train_data.transform
+        #
+        # search_loader = {}
+        # for one in user_data:
+        #     search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
+        # # data loader
+        #     search_loader[one] = torch.utils.data.DataLoader(
+        #         search_data,
+        #         batch_size=batch,
+        #         shuffle=True,
+        #         num_workers=workers,
+        #         pin_memory=True,
+        #     )
+        #
 
         # search_data = SearchDataset(
         #     dataset,
@@ -510,22 +517,22 @@ def get_nas_search_loaders(
         #     num_workers=workers,
         #     pin_memory=True,
         # )
-        train_loader = torch.utils.data.DataLoader(
-            train_data,
-            batch_size=batch,
-            shuffle=True,
-            num_workers=workers,
-            pin_memory=True,
-        )
-        valid_loader = torch.utils.data.DataLoader(
-            valid_data,
-            batch_size=test_batch,
-            sampler=torch.utils.data.sampler.SubsetRandomSampler(
-                cifar100_test_split.xvalid
-            ),
-            num_workers=workers,
-            pin_memory=True,
-        )
+        # train_loader = torch.utils.data.DataLoader(
+        #     train_data,
+        #     batch_size=batch,
+        #     shuffle=True,
+        #     num_workers=workers,
+        #     pin_memory=True,
+        # )
+        # valid_loader = torch.utils.data.DataLoader(
+        #     valid_data,
+        #     batch_size=test_batch,
+        #     sampler=torch.utils.data.sampler.SubsetRandomSampler(
+        #         cifar100_test_split.xvalid
+        #     ),
+        #     num_workers=workers,
+        #     pin_memory=True,
+        # )
     elif dataset == "ImageNet16-120":
         imagenet_test_split = load_config(
             "{:}/imagenet-16-120-test-split.txt".format(config_root), None, None

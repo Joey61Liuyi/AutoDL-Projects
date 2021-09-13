@@ -151,6 +151,33 @@ def search_func(
         network.state_dict()
     )
 
+def test_func(
+    xloader,
+    network,
+    criterion,
+):
+    base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
+    network.eval()
+
+    for step, (base_inputs, base_targets) in enumerate(
+        xloader
+    ):
+        base_targets = base_targets.cuda(non_blocking=True)
+        _, logits = network(base_inputs.cuda())
+        base_loss = criterion(logits, base_targets)
+        base_prec1, base_prec5 = obtain_accuracy(
+            logits.data, base_targets.data, topk=(1, 5)
+        )
+        base_losses.update(base_loss.item(), base_inputs.size(0))
+        base_top1.update(base_prec1.item(), base_inputs.size(0))
+        base_top5.update(base_prec5.item(), base_inputs.size(0))
+
+    return (
+        base_losses.avg,
+        base_top1.avg,
+        base_top5.avg,
+    )
+
 
 def main(xargs):
     assert torch.cuda.is_available(), "CUDA is not available."
@@ -340,6 +367,12 @@ def main(xargs):
 
             valid_accuracies[user][epoch] = valid_a_top1
             genotypes[user][epoch] = search_model[user].genotype()
+
+            loss, top1acc, top5acc = test_func(valid_loader[user], search_model[user], criterion)
+            logger.log(
+                "||||---|||| The {epoch:}-th epoch, user {user}, valid loss={loss:.3f}, valid_top1={top1:.2f}%, valid_top5={top5:.2f}%".format(
+                    epoch=epoch_str, user=user, loss=loss, top1=top1acc, top5=top5acc, )
+            )
 
         arch_personalize = args.personalize_arch
         weight_average, arch_list = average_weights(weight_list, arch_personalize)
