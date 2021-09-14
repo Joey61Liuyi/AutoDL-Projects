@@ -450,23 +450,23 @@ def get_nas_search_loaders(
         # logger.log('Load split file from {:}'.format(split_Fpath))      # they are two disjoint groups in the original CIFAR-10 training set
         # To split data
         xvalid_data = deepcopy(train_data)
-
-        random.seed(61)
-        np.random.seed(61)
-        user_data = {}
-
-        tep_train, tep_valid = data_partition(train_data, valid_data, 0.5, 5)
-        # tep_valid = data_partition(valid_data, client_dict, 0.5)
-
-        for one in tep_train:
-            if valid_use:
-                # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-                user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
-            else:
-                a = np.random.choice(tep_train[one], int(len(tep_train[one]) / 2), replace=False)
-                user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
-
-        np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
+        #
+        # random.seed(61)
+        # np.random.seed(61)
+        # user_data = {}
+        #
+        # tep_train, tep_valid = data_partition(train_data, valid_data, 0.5, 5)
+        # # tep_valid = data_partition(valid_data, client_dict, 0.5)
+        #
+        # for one in tep_train:
+        #     if valid_use:
+        #         # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+        #         user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
+        #     else:
+        #         a = np.random.choice(tep_train[one], int(len(tep_train[one]) / 2), replace=False)
+        #         user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
+        #
+        # np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
         user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), allow_pickle=True).item()
 
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue
