@@ -94,54 +94,130 @@ def data_organize(idxs_labels, labels):
     return data_dict
 
 
-def data_partition(training_data, client_dict, non_iid_level):
+def data_partition(training_data, testing_data, non_iid_level, user_num):
+    idxs_train = np.arange(len(training_data))
+    idxs_valid = np.arange(len(testing_data))
+    labels_train = training_data.targets
+    labels_valid = testing_data.targets
 
-    number_of_clients = len(client_dict)
-    idxs = np.arange(len(training_data))
-    labels = training_data.targets
+    idxs_labels_train = np.vstack((idxs_train, labels_train))
+    idxs_labels_train = idxs_labels_train[:, idxs_labels_train[1,:].argsort()]
+    idxs_labels_valid = np.vstack((idxs_valid, labels_valid))
+    idxs_labels_valid = idxs_labels_valid[:, idxs_labels_valid[1,:].argsort()]
 
-    # sort labels
-    idxs_labels = np.vstack((idxs, labels))
+    labels = np.unique(labels_train, axis=0)
 
-    idxs_labels = idxs_labels[:, idxs_labels[1, :].argsort()]
-    labels = np.unique(labels, axis=0)
-    idxs = idxs_labels[0, :]
-    data_dict = data_organize(idxs_labels, labels)
+    data_train_dict = data_organize(idxs_labels_train, labels)
+    data_valid_dict = data_organize(idxs_labels_valid, labels)
+
+    data_partition_profile_train = {}
+    data_partition_profile_valid = {}
+
+    for i in range(user_num):
+        data_partition_profile_train[i] = set([])
+        data_partition_profile_valid[i] = set([])
+
+    all_idxs_train = [i for i in range(len(training_data))]
+    all_idxs_valid = [i for i in range(len(testing_data))]
 
     if non_iid_level == 0:
-        num_items = int(len(training_data)/number_of_clients)
-        data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
-        for i in range(number_of_clients):
-            data_partition_profile[i] = set(np.random.choice(all_idxs, num_items, replace=False))
-            all_idxs = list(set(all_idxs) - data_partition_profile[i])
+        num_items_train = int(len(training_data)/user_num)
+        num_items_valid = int(len(testing_data) / user_num)
 
+        for i in range(user_num):
+            data_partition_profile_train[i] = set(np.random.choice(all_idxs_train, num_items_train, replace=False))
+            all_idxs_train = list(set(all_idxs_train) - data_partition_profile_train[i])
+            data_partition_profile_valid[i] = set(np.random.choice(all_idxs_valid, num_items_valid, replace=False))
+            all_idxs_valid = list(set(all_idxs_valid) - data_partition_profile_valid[i])
     else:
-        data_dist = uniform(len(training_data), number_of_clients)
-        data_dist.sort(reverse=True)
-        print(data_dist)
+        data_dist_train = uniform(len(training_data), user_num)
+        data_dist_valid = uniform(len(testing_data), user_num)
+        for i in range(user_num):
+            pref_num_train = int(round(data_dist_train[i]*non_iid_level))
+            pref_num_valid = int(round(data_dist_valid[i]*non_iid_level))
+            pref_num_train_tep = pref_num_train
+            pref_num_valid_tep = pref_num_valid
 
-        data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
+            while pref_num_train_tep != 0 or pref_num_valid_tep != 0:
+                pref_label = np.random.choice(list(data_train_dict.keys()), 1)[0]
+                if len(data_train_dict[pref_label]) > pref_num_train:
+                    data_partition_profile_train[i] = set.union(data_partition_profile_train[i], set(np.random.choice(data_train_dict[pref_label], pref_num_train_tep, replace=False)))
+                else:
+                    data_partition_profile_train[i] = set.union(data_partition_profile_train[i], set(data_train_dict[pref_label]))
+                    data_train_dict.pop(pref_label)
+                if len(data_valid_dict[pref_label]) > pref_num_valid:
+                    data_partition_profile_valid[i] = set.union(data_partition_profile_valid[i], set(np.random.choice(data_valid_dict[pref_label], pref_num_valid_tep, replace=False)))
+                else:
+                    data_partition_profile_valid[i] = set.union(data_partition_profile_valid[i], set(data_valid_dict[pref_label]))
+                    data_valid_dict.pop(pref_label)
+                pref_num_train_tep = pref_num_train - len(data_partition_profile_train[i])
+                pref_num_valid_tep = pref_num_valid - len(data_partition_profile_valid[i])
+            all_idxs_train = list(set(all_idxs_train) - set(data_partition_profile_train[i]))
+            all_idxs_valid = list(set(all_idxs_valid) - set(data_partition_profile_valid[i]))
+            data_dist_train[i] -= len(data_partition_profile_train[i])
+            data_dist_valid[i] -= len(data_partition_profile_valid[i])
 
-        for i in range(number_of_clients):
-            pref_number = int(round(data_dist[i] * non_iid_level))
+        for i in range(user_num):
+            tep = set(np.random.choice(all_idxs_train, data_dist_train[i], replace=False))
+            all_idxs_train = list(set(all_idxs_train)-tep)
+            data_partition_profile_train[i] = set.union(data_partition_profile_train[i], tep)
+            tep = set(np.random.choice(all_idxs_valid, data_dist_valid[i], replace=False))
+            all_idxs_valid = list(set(all_idxs_valid)-tep)
+            data_partition_profile_valid[i] = set.union(data_partition_profile_valid[i], tep)
 
-            if pref_number > len(data_dict[client_dict[i]]):
-                pref_number = len(data_dict[client_dict[i]])
+    for one in data_partition_profile_train:
+        data_partition_profile_train[one] = list(data_partition_profile_train[one])
+        data_partition_profile_valid[one] = list(data_partition_profile_valid[one])
 
-            data_dist[i] -= pref_number
-            data_partition_profile[i] = set(np.random.choice(data_dict[client_dict[i]], pref_number, replace=False))
-            all_idxs = list(set(all_idxs) - data_partition_profile[i])
-            data_dict[client_dict[i]] = list(set(data_dict[client_dict[i]]) - data_partition_profile[i])
 
-        for i in range(number_of_clients):
-            rest_idxs = set(np.random.choice(all_idxs, data_dist[i], replace=False))
-            data_partition_profile[i] = set.union(data_partition_profile[i], rest_idxs)
-            all_idxs = list(set(all_idxs) - rest_idxs)
-
-        for one in data_partition_profile:
-            data_partition_profile[one] = list(data_partition_profile[one])
-
-    return data_partition_profile
+# def data_partition(training_data, client_dict, non_iid_level):
+#
+#     number_of_clients = len(client_dict)
+#     idxs = np.arange(len(training_data))
+#     labels = training_data.targets
+#
+#     # sort labels
+#     idxs_labels = np.vstack((idxs, labels))
+#
+#     idxs_labels = idxs_labels[:, idxs_labels[1, :].argsort()]
+#     labels = np.unique(labels, axis=0)
+#     idxs = idxs_labels[0, :]
+#     data_dict = data_organize(idxs_labels, labels)
+#
+#     if non_iid_level == 0:
+#         num_items = int(len(training_data)/number_of_clients)
+#         data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
+#         for i in range(number_of_clients):
+#             data_partition_profile[i] = set(np.random.choice(all_idxs, num_items, replace=False))
+#             all_idxs = list(set(all_idxs) - data_partition_profile[i])
+#
+#     else:
+#         data_dist = uniform(len(training_data), number_of_clients)
+#         data_dist.sort(reverse=True)
+#         print(data_dist)
+#
+#         data_partition_profile, all_idxs = {}, [i for i in range(len(training_data))]
+#
+#         for i in range(number_of_clients):
+#             pref_number = int(round(data_dist[i] * non_iid_level))
+#
+#             if pref_number > len(data_dict[client_dict[i]]):
+#                 pref_number = len(data_dict[client_dict[i]])
+#
+#             data_dist[i] -= pref_number
+#             data_partition_profile[i] = set(np.random.choice(data_dict[client_dict[i]], pref_number, replace=False))
+#             all_idxs = list(set(all_idxs) - data_partition_profile[i])
+#             data_dict[client_dict[i]] = list(set(data_dict[client_dict[i]]) - data_partition_profile[i])
+#
+#         for i in range(number_of_clients):
+#             rest_idxs = set(np.random.choice(all_idxs, data_dist[i], replace=False))
+#             data_partition_profile[i] = set.union(data_partition_profile[i], rest_idxs)
+#             all_idxs = list(set(all_idxs) - rest_idxs)
+#
+#         for one in data_partition_profile:
+#             data_partition_profile[one] = list(data_partition_profile[one])
+#
+    return data_partition_profile_train, data_partition_profile_valid
 
 
 class CUTOUT(object):
@@ -374,38 +450,23 @@ def get_nas_search_loaders(
         # logger.log('Load split file from {:}'.format(split_Fpath))      # they are two disjoint groups in the original CIFAR-10 training set
         # To split data
         xvalid_data = deepcopy(train_data)
-        #
-        # random.seed(61)
-        # np.random.seed(61)
+
+        random.seed(61)
+        np.random.seed(61)
         user_data = {}
 
-        # set the non-iid pref
-        # client_dict = {}
-        # labels = train_data.targets
-        # labels = np.unique(labels, axis=0)
-        # pref_dist = uniform(5, len(labels))
-        # print(pref_dist)
-        # client_list = list(range(5))
-        #
-        # for i in range(len(pref_dist)):
-        #     while pref_dist[i] > 0:
-        #         client = np.random.choice(client_list, 1, replace=False)[0]
-        #         client_dict[client] = labels[i]
-        #         pref_dist[i] -= 1
-        #         client_list = list(set(client_list) - set([client]))
-        #
-        # tep_train = data_partition(train_data, client_dict, 0.5)
+        tep_train, tep_valid = data_partition(train_data, valid_data, 0.5, 5)
         # tep_valid = data_partition(valid_data, client_dict, 0.5)
-        #
-        # for one in tep_train:
-        #     if valid_use:
-        #         # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-        #         user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
-        #     else:
-        #         a = np.random.choice(tep_train[one], int(len(tep_train[one]) / 2), replace=False)
-        #         user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
-        #
-        # np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
+
+        for one in tep_train:
+            if valid_use:
+                # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
+                user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
+            else:
+                a = np.random.choice(tep_train[one], int(len(tep_train[one]) / 2), replace=False)
+                user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
+
+        np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
         user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), allow_pickle=True).item()
 
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue

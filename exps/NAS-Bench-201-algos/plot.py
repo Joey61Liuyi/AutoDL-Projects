@@ -14,8 +14,8 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 import re
 
-file1 = 'Cifar100P.log'
-file2 = 'cifar100NP.log'
+file1 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-610914-T-13-Sep-at-16-52-59.log'
+file2 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-610914-T-13-Sep-at-16-52-15.log'
 # file3 = 'cifar100_PFL.log'
 
 
@@ -45,6 +45,31 @@ tep.columns = ['Personalize Arch', 'Traditional FL']
 tep.plot()
 plt.show()
 
+
+tep = pd.DataFrame()
+
+for file in [file1, file2]:
+    result = []
+    for user in range(5):
+        result.append([])
+
+    for line in open(file):
+        for user in range(5):
+            a = re.search('user {}'.format(user), line)
+            if a:
+                if '||||' in line:
+                    result[user].append(float(re.findall('valid_top1=(.+?)%',line)[0]))
+
+    result = pd.DataFrame(result)
+    result = result.T
+    result.columns = ['user0', 'user1', 'user2', 'user3', 'user4']
+    result['avg'] = result.mean(axis = 1)
+    tep[file] = result['avg']
+
+tep.columns = ['Personalize Arch', 'Traditional FL']
+
+tep.plot()
+plt.show()
 
 
 # 绘图参数全家桶
