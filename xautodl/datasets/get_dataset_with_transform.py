@@ -435,7 +435,7 @@ def get_nas_search_loaders(
     train_data, valid_data, dataset, config_root, batch_size, workers
 ):
 
-    valid_use = False
+    valid_use = True
     if isinstance(batch_size, (list, tuple)):
         batch, test_batch = batch_size
     else:

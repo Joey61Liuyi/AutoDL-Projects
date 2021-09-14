@@ -14,8 +14,8 @@ from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 import re
 
-file1 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-610914-T-13-Sep-at-16-52-59.log'
-file2 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-610914-T-13-Sep-at-16-52-15.log'
+file1 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-10-48.log'
+file2 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-12-23.log'
 # file3 = 'cifar100_PFL.log'
 
 

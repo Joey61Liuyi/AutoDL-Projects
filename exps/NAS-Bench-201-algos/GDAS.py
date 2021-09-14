@@ -26,6 +26,7 @@ from nas_201_api import NASBench201API as API
 from torch.utils.data import Dataset
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+from dloptimizer import dlOptimizer
 import copy
 import warnings
 warnings.filterwarnings("ignore")
@@ -66,6 +67,7 @@ def average_weights(w, arch_personalization):
 def search_func(
     xloader,
     network,
+    global_network,
     criterion,
     scheduler,
     w_optimizer,
@@ -98,7 +100,11 @@ def search_func(
             base_loss = criterion(logits, base_targets)
             base_loss.backward()
             torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-            w_optimizer.step()
+
+            if args.baseline == 'dl':
+                w_optimizer.step(global_network.get_weights())
+            else:
+                w_optimizer.step()
             # record
             base_prec1, base_prec5 = obtain_accuracy(
                 logits.data, base_targets.data, topk=(1, 5)
@@ -248,8 +254,10 @@ def main(xargs):
     for one in search_loader:
         search_model[one] = get_cell_based_tiny_net(model_config).cuda()
         search_model[one].load_state_dict(search_globle_model.state_dict())
-        w_optimizer[one], w_scheduler[one], criterion = get_optim_scheduler(search_model[one].get_weights(), config)
-        a_optimizer[one] = torch.optim.Adam( search_model[one].get_alphas(), lr=xargs.arch_learning_rate, betas=(0.5, 0.999), weight_decay=xargs.arch_weight_decay,)
+        w_optimizer[one], w_scheduler[one], criterion = get_optim_scheduler(search_model[one].parameters(), config)
+        if args.baseline == "dl":
+            w_optimizer[one] = dlOptimizer(search_model[one].get_weights(), xargs.arch_learning_rate, 0.1)
+        a_optimizer[one] = torch.optim.Adam(search_model[one].get_alphas(), lr=xargs.arch_learning_rate, betas=(0.5, 0.999), weight_decay=xargs.arch_weight_decay,)
         valid_accuracies[one], genotypes[one] = (
             {"best": -1},
             {-1: search_model[one].genotype()},
@@ -341,6 +349,7 @@ def main(xargs):
             ) = search_func(
                 search_loader[user],
                 search_model[user],
+                search_globle_model,
                 criterion,
                 w_scheduler[user],
                 w_optimizer[user],
@@ -388,6 +397,7 @@ def main(xargs):
             logger.log(
                 "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, search_model[user].genotype())
             )
+        search_globle_model.load_state_dict(weight_average)
 
         search_time.update(time.time() - start_time)
 
@@ -554,7 +564,8 @@ if __name__ == "__main__":
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
     parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
     parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
-    parser.add_argument("--rand_seed", type=int, default=610915, help="manual seed")
+    parser.add_argument("--baseline", type =str, default ='dl', help = "type of baseline")
+    parser.add_argument("--rand_seed", type=int, default=61, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
