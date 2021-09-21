@@ -467,7 +467,11 @@ def get_nas_search_loaders(
         #         user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
         #
         # np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
-        user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), allow_pickle=True).item()
+        if dataset == 'cifar10':
+            user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), allow_pickle=True).item()
+        elif dataset == 'cifar100':
+            user_data = np.load('Old_Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset),
+                                allow_pickle=True).item()
 
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue
             xvalid_data.transforms = valid_data.transform

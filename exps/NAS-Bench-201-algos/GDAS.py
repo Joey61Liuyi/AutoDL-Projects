@@ -383,6 +383,19 @@ def main(xargs):
                     epoch=epoch_str, user=user, loss=loss, top1=top1acc, top5=top5acc, )
             )
 
+
+            info_dict = {"{}user_w_loss".format(user): search_w_loss,
+                         "{}user_w_top1".format(user): search_w_top1,
+                         "{}user_w_top5".format(user): search_w_top5,
+                         "{}user_a_loss".format(user): valid_a_loss,
+                         "{}user_a_top1".format(user): valid_a_top1,
+                         "{}user_a_top5".format(user): valid_a_top5,
+                         "{}user_test_loss".format(user): search_w_loss,
+                         "{}user_test_top1".format(user): search_w_loss,
+                         "{}user_test_top5".format(user): search_w_loss,
+                         }
+            wandb.log(info_dict)
+
         arch_personalize = args.personalize_arch
         weight_average, arch_list = average_weights(weight_list, arch_personalize)
 
@@ -496,6 +509,8 @@ def main(xargs):
 
 if __name__ == "__main__":
 
+    import wandb
+    wandb.init(project="Federated_NAS", name = 'trail_01')
     dataset = 'cifar100'
 
     parser = argparse.ArgumentParser("GDAS")
@@ -564,9 +579,13 @@ if __name__ == "__main__":
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
     parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
     parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
-    parser.add_argument("--baseline", type =str, default ='dl', help = "type of baseline")
+    parser.add_argument("--baseline", type =str, default = None, help = "type of baseline")
     parser.add_argument("--rand_seed", type=int, default=61, help="manual seed")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
+
+
+
+    wandb.config.update(args)
     main(args)

@@ -11,18 +11,42 @@ import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
-
 import re
 
-file1 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-10-48.log'
-file2 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-12-23.log'
+file1 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-14-Sep-at-19-06-38.log'
+file2 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-14-Sep-at-19-08-07.log'
+file3 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-14-Sep-at-19-11-04.log'
+file4 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-14-Sep-at-19-13-13.log'
+file5 = 'output_search-cell-nas-bench-201_GDAS-cifar10-BN1_seed-61-T-14-Sep-at-20-33-15.log'
+file6 = 'output_search-cell-nas-bench-201_GDAS-cifar10-BN1_seed-61-T-14-Sep-at-20-34-48.log'
+file7 = 'output_search-cell-nas-bench-201_GDAS-cifar10-BN1_seed-61-T-14-Sep-at-20-36-25.log'
+file8 = 'output_search-cell-nas-bench-201_GDAS-cifar10-BN1_seed-61-T-14-Sep-at-20-37-52.log'
+file9 = 'output_search-cell-nas-bench-201_GDAS-cifar10-BN1_seed-610915-T-14-Sep-at-09-50-01.log'
+file10 = 'output_search-cell-nas-bench-201_GDAS-cifar10-BN1_seed-610915-T-14-Sep-at-09-51-36.log'
+file11 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-610915-T-14-Sep-at-09-46-41.log'
+file12 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-610915-T-14-Sep-at-09-48-42.log'
+file13 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-10-48.log'    # Leaf-0001
+file14 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-12-23.log'    # joey-4T4
+
+
 # file3 = 'cifar100_PFL.log'
 
 
 tep = pd.DataFrame()
+files = [file1, file2, file3, file4]
+cifar10_files = [file5, file6, file7, file8]
+
+files610915 = [file9, file10, file11, file12]
+# files = files610915
+# files = cifar10_files
+
+files = [file13, file14]
 
 
-for file in [file1, file2]:
+names = ['Personalize Arch+DL', 'DL only', 'only Personalized Arch', 'FL']
+# names = ['cifar10_ousr', 'cifar10_baseline', 'cifar100_ours', 'cifar100_baseline']
+names = ['only Personalized Arch', 'FL']
+for file in files:
     result = []
     for user in range(5):
         result.append([])
@@ -40,7 +64,7 @@ for file in [file1, file2]:
     result['avg'] = result.mean(axis = 1)
     tep[file] = result['avg']
 
-tep.columns = ['Personalize Arch', 'Traditional FL']
+tep.columns = names
 
 tep.plot()
 plt.show()
@@ -48,7 +72,7 @@ plt.show()
 
 tep = pd.DataFrame()
 
-for file in [file1, file2]:
+for file in files:
     result = []
     for user in range(5):
         result.append([])
@@ -66,7 +90,7 @@ for file in [file1, file2]:
     result['avg'] = result.mean(axis = 1)
     tep[file] = result['avg']
 
-tep.columns = ['Personalize Arch', 'Traditional FL']
+tep.columns = names
 
 tep.plot()
 plt.show()
