@@ -405,11 +405,9 @@ def main(xargs):
         info_dict = {
             "epoch": epoch,
             "average_valid_acc": np.average(acc_list),
-            "average_test_acc": np.average(acc_list)
+            "average_test_acc": np.average(test_acc_list)
         }
-
-
-        np.average(acc_list)
+        wandb.log(info_dict)
 
         arch_personalize = args.personalize_arch
         weight_average, arch_list = average_weights(weight_list, arch_personalize)
@@ -512,20 +510,11 @@ def main(xargs):
 
     logger.close()
 
-    gauth = GoogleAuth()
-    drive = GoogleDrive(gauth)
-    upload_file_list = [str(logger.logger_path)]
-    for upload_file in upload_file_list:
-        gfile = drive.CreateFile({'parents': [{'id': '1B7btb5VBlWNppuNCjo6b4F4-byZqDJV5'}]})
-        # Read file and set it as a content of this instance.
-        gfile.SetContentFile(upload_file)
-        gfile.Upload()  # Upload the file.
-
 
 if __name__ == "__main__":
 
     import wandb
-    wandb.init(project="Federated_NAS", name = 'trail_01')
+    wandb.init(project="Federated_NAS", name='cifar_100_FedNAS')
     dataset = 'cifar100'
 
     parser = argparse.ArgumentParser("GDAS")
