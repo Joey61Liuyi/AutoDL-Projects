@@ -5,6 +5,8 @@
 ###########################################################################
 import sys, time, random, argparse
 from copy import deepcopy
+
+import numpy as np
 import torch
 
 import sys
@@ -338,6 +340,7 @@ def main(xargs):
         # )
         weight_list = []
         acc_list = []
+        test_acc_list = []
         for user in search_loader:
             (   search_w_loss,
                 search_w_top1,
@@ -378,13 +381,16 @@ def main(xargs):
             genotypes[user][epoch] = search_model[user].genotype()
 
             loss, top1acc, top5acc = test_func(valid_loader[user], search_model[user], criterion)
+            test_acc_list.append(top1acc)
+
             logger.log(
                 "||||---|||| The {epoch:}-th epoch, user {user}, valid loss={loss:.3f}, valid_top1={top1:.2f}%, valid_top5={top5:.2f}%".format(
                     epoch=epoch_str, user=user, loss=loss, top1=top1acc, top5=top5acc, )
             )
 
 
-            info_dict = {"{}user_w_loss".format(user): search_w_loss,
+            info_dict = {
+                         "{}user_w_loss".format(user): search_w_loss,
                          "{}user_w_top1".format(user): search_w_top1,
                          "{}user_w_top5".format(user): search_w_top5,
                          "{}user_a_loss".format(user): valid_a_loss,
@@ -395,6 +401,15 @@ def main(xargs):
                          "{}user_test_top5".format(user): search_w_loss,
                          }
             wandb.log(info_dict)
+
+        info_dict = {
+            "epoch": epoch,
+            "average_valid_acc": np.average(acc_list),
+            "average_test_acc": np.average(acc_list)
+        }
+
+
+        np.average(acc_list)
 
         arch_personalize = args.personalize_arch
         weight_average, arch_list = average_weights(weight_list, arch_personalize)

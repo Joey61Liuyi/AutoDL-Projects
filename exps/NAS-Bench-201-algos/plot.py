@@ -34,18 +34,18 @@ file14 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at
 
 tep = pd.DataFrame()
 files = [file1, file2, file3, file4]
-cifar10_files = [file5, file6, file7, file8]
+cifar10_files = [file7, file8]
 
 files610915 = [file9, file10, file11, file12]
 # files = files610915
-# files = cifar10_files
+files = cifar10_files
 
 files = [file13, file14]
 
 
-names = ['Personalize Arch+DL', 'DL only', 'only Personalized Arch', 'FL']
+# names = ['Personalize Arch+DL', 'DL only', 'only Personalized Arch', 'FL']
 # names = ['cifar10_ousr', 'cifar10_baseline', 'cifar100_ours', 'cifar100_baseline']
-names = ['only Personalized Arch', 'FL']
+names = ['Personalized Arch', 'FedNAS']
 for file in files:
     result = []
     for user in range(5):
