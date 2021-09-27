@@ -15,7 +15,8 @@ from .DownsampledImageNet import ImageNet16
 from .SearchDatasetWrap import SearchDataset
 from torch.utils.data import DataLoader, Dataset
 import random
-
+import json
+import pandas as pd
 
 
 Dataset2Class = {
@@ -27,8 +28,56 @@ Dataset2Class = {
     "ImageNet16-150": 150,
     "ImageNet16-120": 120,
     "ImageNet16-200": 200,
+    "mini-imagenet":100
 }
 
+
+class MyDataSet(Dataset):
+    """自定义数据集"""
+
+    def __init__(self,
+                 root_dir: str,
+                 csv_name: str,
+                 json_path: str,
+                 transform=None):
+        images_dir = os.path.join(root_dir, "images")
+        assert os.path.exists(images_dir), "dir:'{}' not found.".format(images_dir)
+
+        assert os.path.exists(json_path), "file:'{}' not found.".format(json_path)
+        self.label_dict = json.load(open(json_path, "r"))
+
+        csv_path = os.path.join(root_dir, csv_name)
+        assert os.path.exists(csv_path), "file:'{}' not found.".format(csv_path)
+        csv_data = pd.read_csv(csv_path)
+        self.total_num = csv_data.shape[0]
+        self.img_paths = [os.path.join(images_dir, i) for i in csv_data["filename"].values]
+        self.img_label = [self.label_dict[i][0] for i in csv_data["label"].values]
+        self.labels = set(csv_data["label"].values)
+
+        self.transform = transform
+
+    def __len__(self):
+        return self.total_num
+
+    def __getitem__(self, item):
+        img = Image.open(self.img_paths[item])
+        # RGB为彩色图片，L为灰度图片
+        if img.mode != 'RGB':
+            raise ValueError("image: {} isn't RGB mode.".format(self.img_paths[item]))
+        label = self.img_label[item]
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, label
+
+    @staticmethod
+    def collate_fn(batch):
+        images, labels = tuple(zip(*batch))
+
+        images = torch.stack(images, dim=0)
+        labels = torch.as_tensor(labels)
+        return images, labels
 
 class DatasetSplit(Dataset):
     """An abstract Dataset class wrapped around Pytorch Dataset class.
@@ -97,8 +146,13 @@ def data_organize(idxs_labels, labels):
 def data_partition(training_data, testing_data, non_iid_level, user_num):
     idxs_train = np.arange(len(training_data))
     idxs_valid = np.arange(len(testing_data))
-    labels_train = training_data.targets
-    labels_valid = testing_data.targets
+
+    if hasattr(training_data, 'targets'):
+        labels_train = training_data.targets
+        labels_valid = testing_data.targets
+    elif hasattr(training_data, 'img_label'):
+        labels_train = training_data.img_label
+        labels_valid = testing_data.img_label
 
     idxs_labels_train = np.vstack((idxs_train, labels_train))
     idxs_labels_train = idxs_labels_train[:, idxs_labels_train[1,:].argsort()]
@@ -302,6 +356,8 @@ def get_datasets(name, root, cutout):
     elif name.startswith("ImageNet16"):
         mean = [x / 255 for x in [122.68, 116.66, 104.01]]
         std = [x / 255 for x in [63.22, 61.26, 65.09]]
+    elif name.startswith("mini-imagenet"):
+        mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     else:
         raise TypeError("Unknow dataset : {:}".format(name))
 
@@ -381,6 +437,16 @@ def get_datasets(name, root, cutout):
             ]
         )
         xshape = (1, 3, 224, 224)
+    elif name == "mini-imagenet":
+        train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
+                                            transforms.RandomHorizontalFlip(),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize(mean, std)])
+        test_transform = transforms.Compose([transforms.Resize(256),
+                                           transforms.CenterCrop(224),
+                                           transforms.ToTensor(),
+                                           transforms.Normalize(mean, std)])
+        xshape = (1, 3, 224, 224)
     else:
         raise TypeError("Unknow dataset : {:}".format(name))
 
@@ -424,6 +490,19 @@ def get_datasets(name, root, cutout):
         train_data = ImageNet16(root, True, train_transform, 200)
         test_data = ImageNet16(root, False, test_transform, 200)
         assert len(train_data) == 254775 and len(test_data) == 10000
+    elif name == "mini-imagenet":
+        print("Preparing Mini-ImageNet dataset")
+        json_path = "./classes_name.json"
+        data_root = "./mini-imagenet/"
+        train_data = MyDataSet(root_dir=data_root,
+                                  csv_name="new_train.csv",
+                                  json_path=json_path,
+                                  transform=train_transform)
+        test_data = MyDataSet(root_dir=data_root,
+                                 csv_name="new_test.csv",
+                                 json_path=json_path,
+                                 transform=test_transform)
+
     else:
         raise TypeError("Unknow dataset : {:}".format(name))
 
@@ -435,28 +514,17 @@ def get_nas_search_loaders(
     train_data, valid_data, dataset, config_root, batch_size, workers
 ):
 
-    valid_use = True
+    valid_use = False
     if isinstance(batch_size, (list, tuple)):
         batch, test_batch = batch_size
     else:
         batch, test_batch = batch_size, batch_size
-    if dataset == "cifar10" or dataset == 'cifar100':
-        # split_Fpath = 'configs/nas-benchmark/cifar-split.txt'
-        # cifar_split = load_config("{:}/cifar-split.txt".format(config_root), None, None)
-        # train_split, valid_split = (
-        #     cifar_split.train,
-        #     cifar_split.valid,
-        # )  # search over the proposed training and validation set
-        # logger.log('Load split file from {:}'.format(split_Fpath))      # they are two disjoint groups in the original CIFAR-10 training set
-        # To split data
+    if dataset == "cifar10" or dataset == 'cifar100' or dataset == 'mini-imagenet':
         xvalid_data = deepcopy(train_data)
-        #
         # random.seed(61)
         # np.random.seed(61)
         # user_data = {}
-        #
         # tep_train, tep_valid = data_partition(train_data, valid_data, 0.5, 5)
-        # # tep_valid = data_partition(valid_data, client_dict, 0.5)
         #
         # for one in tep_train:
         #     if valid_use:
@@ -464,14 +532,13 @@ def get_nas_search_loaders(
         #         user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
         #     else:
         #         a = np.random.choice(tep_train[one], int(len(tep_train[one]) / 2), replace=False)
-        #         user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)), 'valid': tep_valid[one]}
+        #         user_data[one] = {'train': list(set(a)), 'test': list(set(tep_train[one]) - set(a)),
+        #                           'valid': tep_valid[one]}
         #
         # np.save('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), user_data)
-        if dataset == 'cifar10':
-            user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset), allow_pickle=True).item()
-        elif dataset == 'cifar100':
-            user_data = np.load('Old_Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset),
-                                allow_pickle=True).item()
+
+        user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset),
+                            allow_pickle=True).item()
 
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue
             xvalid_data.transforms = valid_data.transform
@@ -483,7 +550,8 @@ def get_nas_search_loaders(
 
         for one in user_data:
             if valid_use:
-                search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
+                search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'],
+                                            user_data[one]['test'])
                 valid_loader[one] = torch.utils.data.DataLoader(
                     xvalid_data,
                     batch_size=test_batch,
@@ -501,8 +569,7 @@ def get_nas_search_loaders(
                     pin_memory=True,
                 )
 
-
-        # data loader
+            # data loader
             search_loader[one] = torch.utils.data.DataLoader(
                 search_data,
                 batch_size=batch,
@@ -517,87 +584,6 @@ def get_nas_search_loaders(
                 num_workers=workers,
                 pin_memory=True,
             )
-
-    # elif dataset == "cifar100":
-        # cifar100_test_split = load_config(
-        #     "{:}/cifar100-test-split.txt".format(config_root), None, None
-        # )
-        # search_train_data = train_data
-
-        # random.seed(61)
-        # np.random.seed(61)
-        # user_data = {}
-        # client_dict = {}
-        #
-        # labels = search_train_data.targets
-        # labels = np.unique(labels, axis=0)
-        # pref_dist = uniform(5, len(labels))
-        # print(pref_dist)
-        # client_list = list(range(5))
-        #
-        # for i in range(len(pref_dist)):
-        #     while pref_dist[i] > 0:
-        #         client = np.random.choice(client_list, 1, replace=False)[0]
-        #         client_dict[client] = labels[i]
-        #         pref_dist[i] -= 1
-        #         client_list = list(set(client_list) - set([client]))
-        #
-        # tep_train = data_partition(train_data, client_dict, 0.5)
-        # tep_valid = data_partition(valid_data, client_dict, 0.5)
-        #
-        # for one in tep_train:
-        #     # a = np.random.choice(tep[one], int(len(tep[one])/2), replace=False)
-        #     user_data[one] = {'train': tep_train[one], 'test': tep_valid[one]}
-        #
-        # np.save('{}_non_iid_setting.npy'.format(dataset), user_data)
-
-        # user_data = np.load('{}_non_iid_setting.npy'.format(dataset), allow_pickle=True).item()
-        #
-        # search_valid_data = deepcopy(valid_data)
-        # search_valid_data.transform = train_data.transform
-        #
-        # search_loader = {}
-        # for one in user_data:
-        #     search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'], user_data[one]['test'])
-        # # data loader
-        #     search_loader[one] = torch.utils.data.DataLoader(
-        #         search_data,
-        #         batch_size=batch,
-        #         shuffle=True,
-        #         num_workers=workers,
-        #         pin_memory=True,
-        #     )
-        #
-
-        # search_data = SearchDataset(
-        #     dataset,
-        #     [search_train_data, search_valid_data],
-        #     list(range(len(search_train_data))),
-        #     cifar100_test_split.xvalid,
-        # )
-        # search_loader = torch.utils.data.DataLoader(
-        #     search_data,
-        #     batch_size=batch,
-        #     shuffle=True,
-        #     num_workers=workers,
-        #     pin_memory=True,
-        # )
-        # train_loader = torch.utils.data.DataLoader(
-        #     train_data,
-        #     batch_size=batch,
-        #     shuffle=True,
-        #     num_workers=workers,
-        #     pin_memory=True,
-        # )
-        # valid_loader = torch.utils.data.DataLoader(
-        #     valid_data,
-        #     batch_size=test_batch,
-        #     sampler=torch.utils.data.sampler.SubsetRandomSampler(
-        #         cifar100_test_split.xvalid
-        #     ),
-        #     num_workers=workers,
-        #     pin_memory=True,
-        # )
     elif dataset == "ImageNet16-120":
         imagenet_test_split = load_config(
             "{:}/imagenet-16-120-test-split.txt".format(config_root), None, None
@@ -634,6 +620,7 @@ def get_nas_search_loaders(
             num_workers=workers,
             pin_memory=True,
         )
+
     else:
         raise ValueError("invalid dataset : {:}".format(dataset))
     return search_loader, train_loader, valid_loader

@@ -380,13 +380,13 @@ def main(xargs):
             valid_accuracies[user][epoch] = valid_a_top1
             genotypes[user][epoch] = search_model[user].genotype()
 
-            loss, top1acc, top5acc = test_func(valid_loader[user], search_model[user], criterion)
-            test_acc_list.append(top1acc)
+            # loss, top1acc, top5acc = test_func(valid_loader[user], search_model[user], criterion)
+            # test_acc_list.append(top1acc)
 
-            logger.log(
-                "||||---|||| The {epoch:}-th epoch, user {user}, valid loss={loss:.3f}, valid_top1={top1:.2f}%, valid_top5={top5:.2f}%".format(
-                    epoch=epoch_str, user=user, loss=loss, top1=top1acc, top5=top5acc, )
-            )
+            # logger.log(
+            #     "||||---|||| The {epoch:}-th epoch, user {user}, valid loss={loss:.3f}, valid_top1={top1:.2f}%, valid_top5={top5:.2f}%".format(
+            #         epoch=epoch_str, user=user, loss=loss, top1=top1acc, top5=top5acc, )
+            # )
 
 
             info_dict = {
@@ -396,9 +396,9 @@ def main(xargs):
                          "{}user_a_loss".format(user): valid_a_loss,
                          "{}user_a_top1".format(user): valid_a_top1,
                          "{}user_a_top5".format(user): valid_a_top5,
-                         "{}user_test_loss".format(user): search_w_loss,
-                         "{}user_test_top1".format(user): search_w_loss,
-                         "{}user_test_top5".format(user): search_w_loss,
+                         # "{}user_test_loss".format(user): search_w_loss,
+                         # "{}user_test_top1".format(user): search_w_loss,
+                         # "{}user_test_top5".format(user): search_w_loss,
                          }
             wandb.log(info_dict)
 
@@ -514,8 +514,8 @@ def main(xargs):
 if __name__ == "__main__":
 
     import wandb
-    wandb.init(project="Federated_NAS", name='cifar_100_FedNAS')
-    dataset = 'cifar100'
+    wandb.init(project="Federated_NAS", name='mini_imagenet_FL')
+    dataset = 'mini-imagenet'
 
     parser = argparse.ArgumentParser("GDAS")
     parser.add_argument("--data_path", type=str, default= '../../../data/{}'.format(dataset),help="The path to dataset")
@@ -581,7 +581,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
-    parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
+    parser.add_argument("--personalize_arch", type=bool, default=False, help="local_epochs for edge nodes")
     parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
     parser.add_argument("--baseline", type =str, default = None, help = "type of baseline")
     parser.add_argument("--rand_seed", type=int, default=61, help="manual seed")
