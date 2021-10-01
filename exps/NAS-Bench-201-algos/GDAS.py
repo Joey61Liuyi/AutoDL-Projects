@@ -514,8 +514,10 @@ def main(xargs):
 if __name__ == "__main__":
 
     import wandb
-    wandb.init(project="Federated_NAS", name='mini_imagenet_FL')
-    dataset = 'mini-imagenet'
+    wandb.init(project="Federated_NAS", name='cifar10_ours')
+    dataset = 'cifar10'
+    space = 'darts'
+    track_running_stats = 1
 
     parser = argparse.ArgumentParser("GDAS")
     parser.add_argument("--data_path", type=str, default= '../../../data/{}'.format(dataset),help="The path to dataset")
@@ -527,7 +529,7 @@ if __name__ == "__main__":
         help="Choose between Cifar10/100 and ImageNet-16.",
     )
     # channels and number-of-cells
-    parser.add_argument("--search_space_name", type=str, default= 'nas-bench-201',help="The search space name.")
+    parser.add_argument("--search_space_name", type=str, default=space,help="The search space name.")
     parser.add_argument("--max_nodes", type=int, default=4, help="The maximum number of nodes.")
     parser.add_argument("--channel", type=int, default=16, help="The number of channels.")
     parser.add_argument(
@@ -536,16 +538,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--track_running_stats",
         type=int,
-        default = 1,
+        default = track_running_stats,
         choices=[0, 1],
         help="Whether use track_running_stats or not in the BN layer.",
     )
     parser.add_argument(
-        "--config_path", type=str, default= '../../configs/nas-benchmark/algos/GDAS.config',help="The path of the configuration."
+        "--config_path", type=str, default= 'C:/Users/86159\Documents\LY_tep\AutoDL-Projects\configs\search-opts\GDAS-NASNet-CIFAR.config',help="The path of the configuration."
     )
     parser.add_argument(
         "--model_config",
         type=str,
+        default='C:/Users/86159\Documents\LY_tep\AutoDL-Projects\configs\search-archs\GDASFRC-NASNet-CIFAR.config',
         help="The path of the model configuration. When this arg is set, it will cover max_nodes / channels / num_cells.",
     )
     # architecture leraning rate
@@ -571,7 +574,7 @@ if __name__ == "__main__":
         help="number of data loading workers (default: 2)",
     )
     parser.add_argument(
-        "--save_dir", type=str, default = './output/search-cell-nas-bench-201/GDAS-{}-BN1'.format(dataset), help="Folder to save checkpoints and log."
+        "--save_dir", type=str, default = './output/search-cell-{}/GDAS-FRC-{}-BN{}'.format(space, dataset, track_running_stats), help="Folder to save checkpoints and log."
     )
     parser.add_argument(
         "--arch_nas_dataset",
@@ -581,7 +584,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
-    parser.add_argument("--personalize_arch", type=bool, default=False, help="local_epochs for edge nodes")
+    parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
     parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
     parser.add_argument("--baseline", type =str, default = None, help = "type of baseline")
     parser.add_argument("--rand_seed", type=int, default=61, help="manual seed")
