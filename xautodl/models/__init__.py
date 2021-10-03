@@ -198,7 +198,7 @@ def get_cifar_models(config, extra_path=None):
                 genotype_list = {}
                 user_list = {}
                 user = 0
-                for line in open(file_proposal2):
+                for line in open(file_proposal):
                     if "<<<--->>>" in line:
                         tep_dict = ast.literal_eval(re.search('({.+})', line).group(0))
                         count = 0

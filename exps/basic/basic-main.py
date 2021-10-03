@@ -54,6 +54,37 @@ class DatasetSplit(Dataset):
         return image.clone().detach(), torch.tensor(label)
 
 
+def Logits_aggregation_func(
+    xloader,
+    network_list,
+    optimizer_list,
+    logger,
+    alignment_epoch
+):
+    for epoch in range(alignment_epoch):
+        for i ,(inputs, targets) in enumerate(xloader):
+            logits_list = {}
+            average_logits = 0
+            for user in network_list:
+                network_list[user].train()
+                optimizer_list[user].zero_grad()
+                features, logits = network_list[user](inputs.to('cuda'))
+                logits_list[user] = logits[0]
+                average_logits += logits_list[user].clone().detach()
+
+            average_logits = average_logits.div(float(len(network_list)))
+
+            for user in network_list:
+                criterion = torch.nn.L1Loss()
+                loss = criterion(logits_list[user], average_logits)
+                # logger.log("The Aggregation Loss of user {} is : {}".format(user, loss))
+                loss.backward()
+                optimizer_list[user].step()
+
+    return None
+
+
+
 def main(args):
     assert torch.cuda.is_available(), "CUDA is not available."
     torch.backends.cudnn.enabled = True
@@ -72,6 +103,16 @@ def main(args):
     user_data = np.load('../../exps/NAS-Bench-201-algos/Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, args.dataset), allow_pickle=True).item()
     train_loader_list = {}
     valid_loader_list = {}
+    alignment_loader = torch.utils.data.DataLoader(
+        DatasetSplit(train_data, np.random.choice(list(range(len(train_data))), 5000)),
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.workers,
+        pin_memory=True,
+    )
+
+
+
     for user in user_data:
         train_loader_list[user] = torch.utils.data.DataLoader(
                                     DatasetSplit(train_data, user_data[user]['train']+user_data[user]['test']),
@@ -223,10 +264,15 @@ def main(args):
     epoch_time = AverageMeter()
     for epoch in range(start_epoch, total_epoch):
 
-        global_model = average_weights(list(state_dict_list.values()))
-        for user in scheduler_list:
-            base_model_list[user].load_state_dict(global_model)
-            scheduler_list[user].update(epoch, 0.0)
+        if args.logits_aggregation:
+            Logits_aggregation_func(alignment_loader, base_model_list, optimizer_list, logger, 1)
+
+        else:
+            global_model = average_weights(list(state_dict_list.values()))
+            for user in scheduler_list:
+                base_model_list[user].load_state_dict(global_model)
+                scheduler_list[user].update(epoch, 0.0)
+
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.avg * (total_epoch - epoch), True)
         )
@@ -387,7 +433,7 @@ def main(args):
 class Config():
     def __init__(self):
         self.dataset = 'cifar10'
-        self.batch = 96
+        self.batch = 30
         self.datapath = '../../../data/{}'
         self.model_source = 'autodl-searched'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
@@ -399,16 +445,17 @@ class Config():
         self.save_dir = './output/nas-infer/{}-BS{}-gdas-searched'.format(self.dataset, self.batch)
         self.cut_out_length = 16
         self.workers = 4
-        self.seed = -1
+        self.seed = 666
         self.print_freq = 500
         self.print_freq_eval = 1000
+        self.logits_aggregation = True
 
 
 
 if __name__ == "__main__":
 
     import wandb
-    wandb.init(project="Federated_NAS_inference", name='cifar10_FedNAS')
+    wandb.init(project="Federated_NAS_inference", name='cifar10_Ours')
     config = Config()
     parser = argparse.ArgumentParser(
         description="Train a classification model on typical image classification datasets.",
@@ -469,6 +516,9 @@ if __name__ == "__main__":
     )
     # Random Seed
     parser.add_argument("--rand_seed", type=int, default=config.seed, help="manual seed")
+    parser.add_argument(
+        "--logits_aggregation", type=bool, default=config.logits_aggregation, help="Batch size for training."
+    )
     # Optimization options
     parser.add_argument(
         "--batch_size", type=int, default=config.batch, help="Batch size for training."
@@ -477,5 +527,6 @@ if __name__ == "__main__":
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
     assert args.save_dir is not None, "save-path argument can not be None"
+    np.random.seed(args.rand_seed)
     wandb.config.update(args)
     main(args)
