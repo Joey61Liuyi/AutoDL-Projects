@@ -182,12 +182,37 @@ def get_cifar_models(config, extra_path=None):
             )
         elif infer_mode == "nasnet.cifar":
             genotype = config.genotype
-            if extra_path is not None:  # reload genotype by extra_path
+            if isinstance(extra_path, str):  # reload genotype by extra_path
                 if not osp.isfile(extra_path):
                     raise ValueError("invalid extra_path : {:}".format(extra_path))
                 xdata = torch.load(extra_path)
                 current_epoch = xdata["epoch"]
                 genotype = xdata["genotypes"][current_epoch - 1]
+            elif isinstance(extra_path,int):
+                import ast
+                import re
+                file_proposal1 = '../../exps/NAS-Bench-201-algos/FedNAS_Search_darts.log'
+                file_proposal = '../../exps/NAS-Bench-201-algos/Ours_Search_darts.log'
+                file_proposal2 = '../../exps/NAS-Bench-201-algos/FedNAS_128.log'
+
+                genotype_list = {}
+                user_list = {}
+                user = 0
+                for line in open(file_proposal2):
+                    if "<<<--->>>" in line:
+                        tep_dict = ast.literal_eval(re.search('({.+})', line).group(0))
+                        count = 0
+                        for j in tep_dict['normal']:
+                            for k in j:
+                                if 'skip_connect' in k[0]:
+                                    count += 1
+                        if count == 2:
+                            genotype_list[user % 5] = tep_dict
+                            user_list[user % 5] = user / 5
+                        user += 1
+                genotype = genotype_list[extra_path]
+
+
             C = config.C if hasattr(config, "C") else config.ichannel
             N = config.N if hasattr(config, "N") else config.layers
             return NASNetonCIFAR(

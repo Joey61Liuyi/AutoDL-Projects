@@ -514,7 +514,7 @@ def main(xargs):
 if __name__ == "__main__":
 
     import wandb
-    wandb.init(project="Federated_NAS", name='cifar10_ours')
+    wandb.init(project="Federated_NAS", name='cifar10_Ours')
     dataset = 'cifar10'
     space = 'darts'
     track_running_stats = 1
@@ -543,12 +543,12 @@ if __name__ == "__main__":
         help="Whether use track_running_stats or not in the BN layer.",
     )
     parser.add_argument(
-        "--config_path", type=str, default= 'C:/Users/86159\Documents\LY_tep\AutoDL-Projects\configs\search-opts\GDAS-NASNet-CIFAR.config',help="The path of the configuration."
+        "--config_path", type=str, default= '../../configs\search-opts\GDAS-NASNet-CIFAR.config',help="The path of the configuration."
     )
     parser.add_argument(
         "--model_config",
         type=str,
-        default='C:/Users/86159\Documents\LY_tep\AutoDL-Projects\configs\search-archs\GDASFRC-NASNet-CIFAR.config',
+        default='../../configs\search-archs\GDASFRC-NASNet-CIFAR.config',
         help="The path of the model configuration. When this arg is set, it will cover max_nodes / channels / num_cells.",
     )
     # architecture leraning rate

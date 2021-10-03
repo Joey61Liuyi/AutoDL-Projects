@@ -12,6 +12,7 @@ import matplotlib.pylab as pylab
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 import re
+import ast
 
 file1 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-14-Sep-at-19-06-38.log'
 file2 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-14-Sep-at-19-08-07.log'
@@ -29,71 +30,112 @@ file13 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at
 file14 = 'output_search-cell-nas-bench-201_GDAS-cifar100-BN1_seed-61-T-13-Sep-at-08-12-23.log'    # joey-4T4
 
 
-# file3 = 'cifar100_PFL.log'
+file_proposal = 'FedNAS_Search_darts.log'
+file_proposal1 = 'Ours_Search_darts.log'
+file_proposal2 = 'FedNAS_128.log'
+
+genotype_list = {}
+user_list = {}
+user = 0
+for line in open(file_proposal2):
+    if "<<<--->>>" in line:
+        tep_dict = ast.literal_eval(re.search('({.+})', line).group(0))
+        count = 0
+        for j in tep_dict['normal']:
+            for k in j:
+                if 'skip_connect' in k[0]:
+                    count += 1
+        if count == 2:
+            genotype_list[user%5] = tep_dict
+            user_list[user%5] = user/5
+        user+=1
+
+# print(genotype_list)
+skip_count = {}
+
+for one in range(5):
+    skip_count[one] = []
+
+for one in range(5):
+    for i in genotype_list[one]:
+        count = 0
+        for j in i['normal']:
+            for k in j:
+                if 'skip_connect' in k[0]:
+                    count += 1
+        skip_count[one].append(count)
 
 
-tep = pd.DataFrame()
-files = [file1, file2, file3, file4]
-cifar10_files = [file7, file8]
 
-files610915 = [file9, file10, file11, file12]
-# files = files610915
-files = cifar10_files
-
-files = [file13, file14]
+file3 = 'cifar100_PFL.log'
+def before():
 
 
-# names = ['Personalize Arch+DL', 'DL only', 'only Personalized Arch', 'FL']
-# names = ['cifar10_ousr', 'cifar10_baseline', 'cifar100_ours', 'cifar100_baseline']
-names = ['Personalized Arch', 'FedNAS']
-for file in files:
-    result = []
-    for user in range(5):
-        result.append([])
+    tep = pd.DataFrame()
+    files = [file1, file2, file3, file4]
+    cifar10_files = [file7, file8]
 
-    for line in open(file):
+    files610915 = [file9, file10, file11, file12]
+    # files = files610915
+    files = cifar10_files
+
+    files = [file13, file14]
+
+
+
+
+
+    # names = ['Personalize Arch+DL', 'DL only', 'only Personalized Arch', 'FL']
+    # names = ['cifar10_ousr', 'cifar10_baseline', 'cifar100_ours', 'cifar100_baseline']
+    names = ['Personalized Arch', 'FedNAS']
+    for file in files:
+        result = []
         for user in range(5):
-            a = re.search('^User {}'.format(user), line)
-            if a:
-                if 'evaluate' in line:
-                    result[user].append(float(re.findall('accuracy@1=(.+?)%',line)[0]))
+            result.append([])
 
-    result = pd.DataFrame(result)
-    result = result.T
-    result.columns = ['user0', 'user1', 'user2', 'user3', 'user4']
-    result['avg'] = result.mean(axis = 1)
-    tep[file] = result['avg']
+        for line in open(file):
+            for user in range(5):
+                a = re.search('^User {}'.format(user), line)
+                if a:
+                    if 'evaluate' in line:
+                        result[user].append(float(re.findall('accuracy@1=(.+?)%',line)[0]))
 
-tep.columns = names
+        result = pd.DataFrame(result)
+        result = result.T
+        result.columns = ['user0', 'user1', 'user2', 'user3', 'user4']
+        result['avg'] = result.mean(axis = 1)
+        tep[file] = result['avg']
 
-tep.plot()
-plt.show()
+    tep.columns = names
+
+    tep.plot()
+    plt.show()
 
 
-tep = pd.DataFrame()
+    tep = pd.DataFrame()
 
-for file in files:
-    result = []
-    for user in range(5):
-        result.append([])
-
-    for line in open(file):
+    for file in files:
+        result = []
         for user in range(5):
-            a = re.search('user {}'.format(user), line)
-            if a:
-                if '||||' in line:
-                    result[user].append(float(re.findall('valid_top1=(.+?)%',line)[0]))
+            result.append([])
 
-    result = pd.DataFrame(result)
-    result = result.T
-    result.columns = ['user0', 'user1', 'user2', 'user3', 'user4']
-    result['avg'] = result.mean(axis = 1)
-    tep[file] = result['avg']
+        for line in open(file):
+            for user in range(5):
+                a = re.search('user {}'.format(user), line)
+                if a:
+                    if '||||' in line:
+                        result[user].append(float(re.findall('valid_top1=(.+?)%',line)[0]))
 
-tep.columns = names
+        result = pd.DataFrame(result)
+        result = result.T
+        result.columns = ['user0', 'user1', 'user2', 'user3', 'user4']
+        result['avg'] = result.mean(axis = 1)
+        tep[file] = result['avg']
 
-tep.plot()
-plt.show()
+    tep.columns = names
+
+    tep.plot()
+    plt.show()
 
 
 # 绘图参数全家桶

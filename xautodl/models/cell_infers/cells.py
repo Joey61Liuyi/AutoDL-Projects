@@ -95,11 +95,19 @@ class NASNetInferCell(nn.Module):
         self.preprocess1 = OPS["nor_conv_1x1"](
             C_prev, C, 1, affine, track_running_stats
         )
-
         if not reduction:
             nodes, concats = genotype["normal"], genotype["normal_concat"]
         else:
-            nodes, concats = genotype["reduce"], genotype["reduce_concat"]
+            if "reduce" in genotype:
+                nodes, concats = genotype["reduce"], genotype["reduce_concat"]
+            else:
+                nodes =[(('max_pool_3x3', 0), ('max_pool_3x3', 1)), # step 1
+                        (('skip_connect', 2), ('max_pool_3x3', 0)), # step 2
+                        (('max_pool_3x3', 0), ('skip_connect', 2)), # step 3
+                        (('skip_connect', 2), ('avg_pool_3x3', 0))  # step 4
+                    ]
+
+                concats = [2, 3, 4, 5]
         self._multiplier = len(concats)
         self._concats = concats
         self._steps = len(nodes)
