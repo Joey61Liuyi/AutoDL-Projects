@@ -34,40 +34,6 @@ file_proposal = 'FedNAS_Search_darts.log'
 file_proposal1 = 'Ours_Search_darts.log'
 file_proposal2 = 'FedNAS_128.log'
 
-genotype_list = {}
-user_list = {}
-user = 0
-for line in open(file_proposal2):
-    if "<<<--->>>" in line:
-        tep_dict = ast.literal_eval(re.search('({.+})', line).group(0))
-        count = 0
-        for j in tep_dict['normal']:
-            for k in j:
-                if 'skip_connect' in k[0]:
-                    count += 1
-        if count == 2:
-            genotype_list[user%5] = tep_dict
-            user_list[user%5] = user/5
-        user+=1
-
-# print(genotype_list)
-skip_count = {}
-
-for one in range(5):
-    skip_count[one] = []
-
-for one in range(5):
-    for i in genotype_list[one]:
-        count = 0
-        for j in i['normal']:
-            for k in j:
-                if 'skip_connect' in k[0]:
-                    count += 1
-        skip_count[one].append(count)
-
-
-
-file3 = 'cifar100_PFL.log'
 def before():
 
 
@@ -87,7 +53,7 @@ def before():
 
     # names = ['Personalize Arch+DL', 'DL only', 'only Personalized Arch', 'FL']
     # names = ['cifar10_ousr', 'cifar10_baseline', 'cifar100_ours', 'cifar100_baseline']
-    names = ['Personalized Arch', 'FedNAS']
+    names = ['pFed_NAS', 'baseline']
     for file in files:
         result = []
         for user in range(5):
@@ -108,7 +74,13 @@ def before():
 
     tep.columns = names
 
-    tep.plot()
+    a = tep.plot()
+    plt.tick_params(labelsize = 15)
+    plt.xlabel("Training Rounds", size = 15)
+    plt.ylabel("Mean Accuracy", size = 15)
+    plt.grid(linestyle = '-.')
+    plt.legend(prop = {'size':12})
+    plt.savefig('Figure3.eps', dpi = 600, format = 'eps')
     plt.show()
 
 
@@ -138,63 +110,102 @@ def before():
     plt.show()
 
 
-# 绘图参数全家桶
-# params = {
-#     'axes.labelsize': '13',
-#     'xtick.labelsize': '12',
-#     'ytick.labelsize': '12',
-#     'legend.fontsize': '13',
-#     'figure.figsize': '4, 3',
-#     'figure.dpi':'300',
-#     'figure.subplot.left':'0.165',
-#     'figure.subplot.right':'0.965',
-#     'figure.subplot.bottom':'0.135',
-#     'figure.subplot.top':'0.925',
-#     'pdf.fonttype':'42',
-#     'ps.fonttype':'42',
-# }
-# pylab.rcParams.update(params)
 #
-# # data = pd.read_excel('E:\香港\dissertation\画图图标/TA_NAS Experiment Record.xlsx',names=['Teacher', 'T-ACC', 'S-lenet'], sheet_name='Cifar10', header=None, usecols=[14, 15, 20], skiprows=range(0, 32), skipfooter=6)
-# labels = ['2', '3', '4', '5', '6', '7', '8']
-# # T_ACC = [96.05, 95.87, 94.89, 93.78, 94.20, 94.46]
-# S_lenet = [71.73, 69.48, 69.94, 70.64, 70.19, 68.80, 70.12]
-# # labels.reverse()
-# # T_ACC.reverse()
-# # S_lenet.reverse()
-# # print(T_ACC)
+# genotype_list = {}
+# user_list = {}
+# user = 0
+# for line in open(file_proposal2):
+#     if "<<<--->>>" in line:
+#         tep_dict = ast.literal_eval(re.search('({.+})', line).group(0))
+#         count = 0
+#         for j in tep_dict['normal']:
+#             for k in j:
+#                 if 'skip_connect' in k[0]:
+#                     count += 1
+#         if count == 2:
+#             genotype_list[user%5] = tep_dict
+#             user_list[user%5] = user/5
+#         user+=1
 #
-# # 设置柱形的间隔
-# width = 0.3  # 柱形的宽度
+# # print(genotype_list)
+# skip_count = {}
 #
-# x = 1 * np.arange(7)
+# for one in range(5):
+#     skip_count[one] = []
 #
-# f, ax1 = plt.subplots()
-# # 设置左侧Y轴对应的figure
-# # ax1.set_ylabel('T-ACC', color='red')
-# # ax1.set_ylim(93, 98)
-# # ax1.bar(x - width / 2, T_ACC, width=width, color='red', label='T_ACC')
-# # ax1.plot(x - width / 2 , T_ACC, color='red')
-#
-# # 设置右侧Y轴对应的figure
-# # ax2 = ax1.twinx()
-# ax1.set_ylabel('Student Accuracy')
-# ax1.set_xlabel('widen_times')
-# ax1.set_ylim(68, 72)
-# ax1.bar(x + width / 2, S_lenet, width=width, color='tab:blue')
-# # ax2.plot(x + width / 2, S_lenet, color='tab:blue')
-#
-# ax1.set_xticks(x)
-# ax1.set_xticklabels(labels)
+# for one in range(5):
+#     for i in genotype_list[one]:
+#         count = 0
+#         for j in i['normal']:
+#             for k in j:
+#                 if 'skip_connect' in k[0]:
+#                     count += 1
+#         skip_count[one].append(count)
 #
 #
-# # x = 0.1 * np.arange(30)
-# # y = 3 * x + 83
-# # ax1.plot(x - width / 2 , y, color='tab:red', linestyle='--')
-# #
-# # y = - 0.65 * (x - 1.3) * (x - 1.3) + 71
-# # ax2.plot(x + width / 2 , y, color='tab:blue', linestyle='--')
 #
-# plt.tight_layout()
-# # plt.savefig("similarity.png")
-# plt.show()
+# file3 = 'cifar100_PFL.log'
+
+
+#python 画柱状图折线图
+#-*- coding: utf-8 -*-
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.ticker as mtick
+from matplotlib.font_manager import FontProperties
+font = FontProperties(fname=r"c:\windows\fonts\simsun.ttc", size=14)
+a=[87.79999707,97.44999829,97.24999756,97.74999744,98.09999768]  #数据
+b=[91.7,95.75,95.05,95.25,96.45]
+c=[0.978526,1.716076,1.254538,1.23553,1.421056]
+d=[1.12603,1.12603,1.12603,1.12603,1.12603]
+l=[i for i in range(5)]
+plt.figure(figsize=(10,10))
+width = 0.3
+n = 2
+# plt.rcParams['font.sans-serif']=['SimHei'] #用来正常显示中文标签
+
+# fmt='%.2f%%'
+# yticks = mtick.FormatStrFormatter(fmt)  #设置百分比形式的坐标轴
+lx=['User0','User1','User2','User3','User4']
+
+fig = plt.figure()
+ax1 = fig.add_subplot(111)
+for i in range(len(l)):
+        l[i] = l[i] - width
+plt.bar(l, a, width = width,label='pFed_NAS')
+for i in range(len(l)):
+        l[i] = l[i] + width
+
+plt.bar(l,b,width = width,label='baseline')
+
+for i in range(len(l)):
+        l[i] = l[i] - width/2
+
+# ax1.plot(l, a,'or-',label='Model Performance')
+# ax1.yaxis.set_major_formatter(yticks)
+# for i,(_x,_y) in enumerate(zip(l,b)):
+#     plt.text(_x,_y,b[i],color='black',fontsize=10,)  #将数值显示在图形上
+ax1.legend(loc='upper left')
+ax1.set_ylim([82, 105]);
+plt.ylabel("Model Performance (%)")
+# plt.legend(prop={'family':'SimHei','size':8})  #设置中文
+ax2 = ax1.twinx() # this is the important function
+# plt.bar(l,c,alpha=0.3,color='blue',label=u'产量')
+for i in range(len(l)):
+        l[i] = l[i] - width/2
+ax2.plot(l, c,label='pFed_NAS')
+for i in range(len(l)):
+        l[i] = l[i] + width
+ax2.plot(l, d,label='baseline')
+
+ax2.legend(loc=0)
+ax2.set_ylim([0.4, 2])  #设置y轴取值范围
+plt.ylabel("Model Param Size (Mb)")
+# plt.legend(prop={'family':'SimHei','size':8},loc="upper left")
+plt.xticks(l,lx)
+plt.savefig('Exp.eps', dpi = 600, format = 'eps')
+plt.show()
+
+
+
+

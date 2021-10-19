@@ -193,7 +193,7 @@ def get_cifar_models(config, extra_path=None):
                 import re
                 file_proposal1 = '../../exps/NAS-Bench-201-algos/FedNAS_Search_darts.log'
                 file_proposal = '../../exps/NAS-Bench-201-algos/Ours_Search_darts.log'
-                file_proposal2 = '../../exps/NAS-Bench-201-algos/FedNAS_128.log'
+                # file_proposal = '../../exps/NAS-Bench-201-algos/FedNAS_128.log'
 
                 genotype_list = {}
                 user_list = {}
@@ -206,7 +206,7 @@ def get_cifar_models(config, extra_path=None):
                             for k in j:
                                 if 'skip_connect' in k[0]:
                                     count += 1
-                        if count == 2:
+                        if count==2:
                             genotype_list[user % 5] = tep_dict
                             user_list[user % 5] = user / 5
                         user += 1

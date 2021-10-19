@@ -23,12 +23,46 @@ from xautodl.utils import get_model_infos
 from xautodl.log_utils import AverageMeter, time_string, convert_secs2time
 import numpy as np
 from torch.utils.data import Dataset
+from Models import create_cnn_model
 import copy
 
 def average_weights(w):
     """
     Returns the average of the weights.
     """
+    w_avg = copy.deepcopy(w[0])
+    for key in w_avg.keys():
+        for i in range(1, len(w)):
+            w_avg[key] += w[i][key]
+        w_avg[key] = torch.div(w_avg[key].float(), len(w))
+    return w_avg
+
+
+def partial_average_weights(w):
+    """
+    Returns the average of the weights.
+    """
+    keys_list = {}
+    key_set = set()
+    for one in w:
+        keys_list[one] = w[one].keys()
+        key_set = set.union(key_set, list(w[one].keys()))
+
+    count = 0
+    for i in key_set:
+        tep = None
+        for j in w:
+            if i in w[j]:
+                if tep:
+                    if w[j][i].shape != tep:
+                        print('in {}: before is {}, now is {}'.format(i, tep, w[j][i].shape))
+                        count += 1
+                else:
+                    tep = w[j][i].shape
+
+
+
+
     w_avg = copy.deepcopy(w[0])
     for key in w_avg.keys():
         for i in range(1, len(w)):
@@ -103,14 +137,20 @@ def main(args):
     user_data = np.load('../../exps/NAS-Bench-201-algos/Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, args.dataset), allow_pickle=True).item()
     train_loader_list = {}
     valid_loader_list = {}
+    # alignment_loader = torch.utils.data.DataLoader(
+    #     DatasetSplit(train_data, np.random.choice(list(range(len(train_data))), 5000)),
+    #     batch_size=args.batch_size,
+    #     shuffle=True,
+    #     num_workers=args.workers,
+    #     pin_memory=True,
+    # )
     alignment_loader = torch.utils.data.DataLoader(
-        DatasetSplit(train_data, np.random.choice(list(range(len(train_data))), 5000)),
+        valid_data,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.workers,
         pin_memory=True,
     )
-
 
 
     for user in user_data:
@@ -156,9 +196,25 @@ def main(args):
         base_model_list = {}
         for user in user_data:
             base_model_list[user] = obtain_model(model_config, user)
+            flop, param = get_model_infos(base_model_list[user], xshape)
+            logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
         # base_model = obtain_model(model_config, args.extra_model_path)
+    elif args.model_source == "Densenet":
+        base_model_list = {}
+        for user in user_data:
+            base_model_list[user] = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=False)
+            flop, param = get_model_infos(base_model_list[user], xshape)
+            logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
     else:
-        raise ValueError("invalid model-source : {:}".format(args.model_source))
+        base_model_list = {}
+        for user in user_data:
+            base_model_list[user], _, __ = create_cnn_model(args.model_source, args.dataset, optim_config.epochs + optim_config.warmup, None, use_cuda=1)
+            flop, param = get_model_infos(base_model_list[user], xshape)
+            logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
+
+
+        # raise ValueError("invalid model-source : {:}".format(args.model_source))
+
 
     optimizer_list = {}
     scheduler_list = {}
@@ -167,7 +223,7 @@ def main(args):
     for user in user_data:
         flop, param = get_model_infos(base_model_list[user], xshape)
         logger.log("model ====>>>>:\n{:}".format(base_model_list[user]))
-        logger.log("model information : {:}".format(base_model_list[user].get_message()))
+        # logger.log("model information : {:}".format(base_model_list[user].get_message()))
         logger.log("-" * 50)
         logger.log(
             "Params={:.2f} MB, FLOPs={:.2f} M ... = {:.2f} G".format(
@@ -257,6 +313,9 @@ def main(args):
     start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
     train_func, valid_func = get_procedures(args.procedure)
 
+
+    partial_average_weights(state_dict_list)
+
     total_epoch = optim_config.epochs + optim_config.warmup
     local_epoch = 3
     # Main Training and Evaluation Loop
@@ -292,7 +351,8 @@ def main(args):
 
         # train for one epoch
 
-        test_accuracy_list = []
+        test_accuracy1_list = []
+        test_accuracy5_list = []
 
         for user in train_loader_list:
             train_loss, train_acc1, train_acc5, state_dict_list[user] = train_func(
@@ -352,7 +412,8 @@ def main(args):
                         model_best_path,
                     )
                 )
-            test_accuracy_list.append(valid_acc1)
+            test_accuracy1_list.append(valid_acc1)
+            test_accuracy5_list.append(valid_acc5)
             info_dict = {
                          "{}user_train_loss".format(user): train_loss,
                          "{}user_train_top1".format(user): train_acc1,
@@ -364,7 +425,8 @@ def main(args):
                          }
             wandb.log(info_dict)
         info_dict = {
-                     "average_valid_acc": np.average(test_accuracy_list),
+                     "average_valid_top1_acc": np.average(test_accuracy1_list),
+                     "average_valid_top5_acc": np.average(test_accuracy5_list),
                      "epoch": epoch
                      }
         wandb.log(info_dict)
@@ -433,9 +495,9 @@ def main(args):
 class Config():
     def __init__(self):
         self.dataset = 'cifar10'
-        self.batch = 30
-        self.datapath = '../../../data/{}'
-        self.model_source = 'autodl-searched'
+        self.batch = 96
+        self.datapath = '../../../data/{}'.format(self.dataset)
+        self.model_source = 'shufflenetg3'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
             base = 'CIFAR'
         self.model_config = './NAS-{}-none.config'.format(base)
@@ -448,15 +510,18 @@ class Config():
         self.seed = 666
         self.print_freq = 500
         self.print_freq_eval = 1000
-        self.logits_aggregation = True
+        self.logits_aggregation = False
+        self.wandb_project = "Federated_NAS_inference"
+        self.run_name = "{}-{}".format(self.model_config, self.dataset)
 
 
 
 if __name__ == "__main__":
 
-    import wandb
-    wandb.init(project="Federated_NAS_inference", name='cifar10_Ours')
+    # torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=False)
     config = Config()
+    import wandb
+    wandb.init(project=config.wandb_project, name=config.run_name)
     parser = argparse.ArgumentParser(
         description="Train a classification model on typical image classification datasets.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
