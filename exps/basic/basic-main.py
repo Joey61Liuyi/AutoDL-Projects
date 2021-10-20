@@ -44,31 +44,35 @@ def partial_average_weights(w):
     """
     keys_list = {}
     key_set = set()
+    tep_dict = {}
     for one in w:
         keys_list[one] = w[one].keys()
         key_set = set.union(key_set, list(w[one].keys()))
 
-    count = 0
     for i in key_set:
-        tep = None
+        tep_dict[i] = []
+
+    for i in key_set:
         for j in w:
             if i in w[j]:
-                if tep:
-                    if w[j][i].shape != tep:
-                        print('in {}: before is {}, now is {}'.format(i, tep, w[j][i].shape))
-                        count += 1
-                else:
-                    tep = w[j][i].shape
+                tep_dict[i].append(w[j][i])
 
+    for i in tep_dict:
+        tep_tep_dict = {}
+        for tensor in tep_dict[i]:
+            if tensor.shape not in tep_tep_dict:
+                tep_tep_dict[tensor.shape] = [tensor.float()]
+            else:
+                tep_tep_dict[tensor.shape].append(tensor.float())
+        for shape in tep_tep_dict:
+            tep_tep_dict[shape] = torch.mean(torch.stack(tep_tep_dict[shape]),0)
+        tep_dict[i] = tep_tep_dict
 
-
-
-    w_avg = copy.deepcopy(w[0])
-    for key in w_avg.keys():
-        for i in range(1, len(w)):
-            w_avg[key] += w[i][key]
-        w_avg[key] = torch.div(w_avg[key].float(), len(w))
-    return w_avg
+    for user in w:
+        for key in w[user]:
+            shape = w[user][key].shape
+            w[user][key] = tep_dict[key][shape]
+    return w
 
 
 
@@ -116,8 +120,6 @@ def Logits_aggregation_func(
                 optimizer_list[user].step()
 
     return None
-
-
 
 def main(args):
     assert torch.cuda.is_available(), "CUDA is not available."
@@ -312,10 +314,6 @@ def main(args):
 
     start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
     train_func, valid_func = get_procedures(args.procedure)
-
-
-    partial_average_weights(state_dict_list)
-
     total_epoch = optim_config.epochs + optim_config.warmup
     local_epoch = 3
     # Main Training and Evaluation Loop
@@ -324,14 +322,15 @@ def main(args):
     for epoch in range(start_epoch, total_epoch):
 
         if args.logits_aggregation:
-            Logits_aggregation_func(alignment_loader, base_model_list, optimizer_list, logger, 1)
+            Logits_aggregation_func(alignment_loader, base_model_list, optimizer_list, logger, 3)
 
         else:
-            global_model = average_weights(list(state_dict_list.values()))
+            state_dict_list = partial_average_weights(state_dict_list)
             for user in scheduler_list:
-                base_model_list[user].load_state_dict(global_model)
-                scheduler_list[user].update(epoch, 0.0)
+                base_model_list[user].load_state_dict(state_dict_list[user])
 
+        for user in scheduler_list:
+            scheduler_list[user].update(epoch, 0.0)
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.avg * (total_epoch - epoch), True)
         )
@@ -497,7 +496,7 @@ class Config():
         self.dataset = 'cifar10'
         self.batch = 96
         self.datapath = '../../../data/{}'.format(self.dataset)
-        self.model_source = 'shufflenetg3'
+        self.model_source = 'autodl-searched'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
             base = 'CIFAR'
         self.model_config = './NAS-{}-none.config'.format(base)
@@ -510,10 +509,10 @@ class Config():
         self.seed = 666
         self.print_freq = 500
         self.print_freq_eval = 1000
-        self.logits_aggregation = False
+        self.logits_aggregation = True
         self.wandb_project = "Federated_NAS_inference"
-        self.run_name = "{}-{}".format(self.model_config, self.dataset)
-
+        # self.run_name = "{}-{}".format(self.model_source, self.dataset)
+        self.run_name = "{}-{}".format("pFedNAS_logits_aggregation", self.dataset)
 
 
 if __name__ == "__main__":

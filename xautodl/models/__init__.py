@@ -206,7 +206,7 @@ def get_cifar_models(config, extra_path=None):
                             for k in j:
                                 if 'skip_connect' in k[0]:
                                     count += 1
-                        if count==2:
+                        if count == 2:
                             genotype_list[user % 5] = tep_dict
                             user_list[user % 5] = user / 5
                         user += 1
