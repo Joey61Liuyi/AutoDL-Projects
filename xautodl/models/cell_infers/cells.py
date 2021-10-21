@@ -6,7 +6,8 @@ import torch
 import torch.nn as nn
 from copy import deepcopy
 
-from xautodl.models.cell_operations import OPS
+from xautodl.models.cell_operations import OPS as OPS_searched
+from xautodl.nas_infer_model.operations import OPS as OPS_infer
 
 
 # Cell for NAS-Bench-201
@@ -83,18 +84,34 @@ class NASNetInferCell(nn.Module):
         track_running_stats,
     ):
         super(NASNetInferCell, self).__init__()
-        self.reduction = reduction
-        if reduction_prev:
-            self.preprocess0 = OPS["skip_connect"](
-                C_prev_prev, C, 2, affine, track_running_stats
+        if 'connects' in genotype:
+            OPS = OPS_infer
+            if reduction_prev:
+                self.preprocess0 = OPS["skip_connect"](
+                    C_prev_prev, C, 2, affine
+                )
+            else:
+                self.preprocess0 = OPS["nor_conv_1x1"](
+                    C_prev_prev, C, 1, affine
+                )
+            self.preprocess1 = OPS["nor_conv_1x1"](
+                C_prev, C, 1, affine
             )
         else:
-            self.preprocess0 = OPS["nor_conv_1x1"](
-                C_prev_prev, C, 1, affine, track_running_stats
+            OPS = OPS_searched
+            if reduction_prev:
+                self.preprocess0 = OPS["skip_connect"](
+                    C_prev_prev, C, 2, affine, track_running_stats
+                )
+            else:
+                self.preprocess0 = OPS["nor_conv_1x1"](
+                    C_prev_prev, C, 1, affine, track_running_stats
+                )
+            self.preprocess1 = OPS["nor_conv_1x1"](
+                C_prev, C, 1, affine, track_running_stats
             )
-        self.preprocess1 = OPS["nor_conv_1x1"](
-            C_prev, C, 1, affine, track_running_stats
-        )
+        self.reduction = reduction
+
         if not reduction:
             nodes, concats = genotype["normal"], genotype["normal_concat"]
         else:
@@ -118,9 +135,14 @@ class NASNetInferCell(nn.Module):
                 name, j = in_node[0], in_node[1]
                 stride = 2 if reduction and j < 2 else 1
                 node_str = "{:}<-{:}".format(i + 2, j)
-                self.edges[node_str] = OPS[name](
-                    C, C, stride, affine, track_running_stats
-                )
+                if 'connects' in genotype:
+                    self.edges[node_str] = OPS[name](
+                        C, C, stride, affine
+                    )
+                else:
+                    self.edges[node_str] = OPS[name](
+                        C, C, stride, affine, track_running_stats
+                    )
 
     # [TODO] to support drop_prob in this function..
     def forward(self, s0, s1, unused_drop_prob):

@@ -21,6 +21,7 @@ from xautodl.models import obtain_model
 from xautodl.nas_infer_model import obtain_nas_infer_model
 from xautodl.utils import get_model_infos
 from xautodl.log_utils import AverageMeter, time_string, convert_secs2time
+from xautodl.nas_infer_model.DXYs.genotypes import Networks
 import numpy as np
 from torch.utils.data import Dataset
 from Models import create_cnn_model
@@ -136,7 +137,7 @@ def main(args):
     )
 
     valid_use = False
-    user_data = np.load('../../exps/NAS-Bench-201-algos/Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, args.dataset), allow_pickle=True).item()
+    user_data = np.load('../../exps/NAS-Bench-201-algos/Dirichlet_0.1_Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, args.dataset), allow_pickle=True).item()
     train_loader_list = {}
     valid_loader_list = {}
     # alignment_loader = torch.utils.data.DataLoader(
@@ -146,16 +147,17 @@ def main(args):
     #     num_workers=args.workers,
     #     pin_memory=True,
     # )
+
     alignment_loader = torch.utils.data.DataLoader(
-        valid_data,
+        DatasetSplit(train_data, user_data['public']),
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.workers,
         pin_memory=True,
     )
+    user_num = len(user_data)-1
 
-
-    for user in user_data:
+    for user in range(user_num):
         train_loader_list[user] = torch.utils.data.DataLoader(
                                     DatasetSplit(train_data, user_data[user]['train']+user_data[user]['test']),
                                     batch_size=args.batch_size,
@@ -195,21 +197,53 @@ def main(args):
     elif args.model_source == "nas":
         base_model = obtain_nas_infer_model(model_config, args.extra_model_path)
     elif args.model_source == "autodl-searched":
+        import ast
+        import re
+
+        file_proposal1 = '../../exps/NAS-Bench-201-algos/FedNAS_Search_darts.log'
+        file_proposal = '../../exps/NAS-Bench-201-algos/Ours_Search_darts.log'
+        # file_proposal = '../../exps/NAS-Bench-201-algos/FedNAS_128.log'
+
+        file_proposal = args.extra_model_path
+        genotype_list = {}
+
+        if args.extra_model_path in Networks:
+            for user in range(user_num):
+                genotype_list[user] = Networks[args.extra_model_path]
+        else:
+            user_list = {}
+            user = 0
+            for line in open(file_proposal):
+                if "<<<--->>>" in line:
+                    tep_dict = ast.literal_eval(re.search('({.+})', line).group(0))
+                    count = 0
+                    for j in tep_dict['normal']:
+                        for k in j:
+                            if 'skip_connect' in k[0]:
+                                count += 1
+                    if count == 2:
+                        genotype_list[user % 5] = tep_dict
+                        user_list[user % 5] = user / 5
+                    user += 1
+
+        logger.log(genotype_list)
+
         base_model_list = {}
-        for user in user_data:
-            base_model_list[user] = obtain_model(model_config, user)
+
+        for user in range(user_num):
+            base_model_list[user] = obtain_model(model_config, genotype_list[user])
             flop, param = get_model_infos(base_model_list[user], xshape)
             logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
         # base_model = obtain_model(model_config, args.extra_model_path)
     elif args.model_source == "Densenet":
         base_model_list = {}
-        for user in user_data:
+        for user in range(user_num):
             base_model_list[user] = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=False)
             flop, param = get_model_infos(base_model_list[user], xshape)
             logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
     else:
         base_model_list = {}
-        for user in user_data:
+        for user in range(user_num):
             base_model_list[user], _, __ = create_cnn_model(args.model_source, args.dataset, optim_config.epochs + optim_config.warmup, None, use_cuda=1)
             flop, param = get_model_infos(base_model_list[user], xshape)
             logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
@@ -222,7 +256,7 @@ def main(args):
     scheduler_list = {}
     criterion_list = {}
     state_dict_list = {}
-    for user in user_data:
+    for user in range(user_num):
         flop, param = get_model_infos(base_model_list[user], xshape)
         logger.log("model ====>>>>:\n{:}".format(base_model_list[user]))
         # logger.log("model information : {:}".format(base_model_list[user].get_message()))
@@ -500,7 +534,7 @@ class Config():
             base = 'CIFAR'
         self.model_config = './NAS-{}-none.config'.format(base)
         self.optim_config = './NAS-{}.config'.format(base)
-        self.extra_model_path = None
+        self.extra_model_path = 'DARTS'
         self.procedure = 'basic'
         self.save_dir = './output/nas-infer/{}-BS{}-gdas-searched'.format(self.dataset, self.batch)
         self.cut_out_length = 16
@@ -508,10 +542,10 @@ class Config():
         self.seed = 666
         self.print_freq = 500
         self.print_freq_eval = 1000
-        self.logits_aggregation = True
+        self.logits_aggregation = False
         self.wandb_project = "Federated_NAS_inference"
         # self.run_name = "{}-{}".format(self.model_source, self.dataset)
-        self.run_name = "{}-{}".format("pFedNAS_logits_aggregation", self.dataset)
+        self.run_name = "{}-{}".format("debugging", self.dataset)
 
 
 if __name__ == "__main__":

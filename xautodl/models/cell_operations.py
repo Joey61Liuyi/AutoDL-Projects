@@ -7,6 +7,8 @@ import torch.nn as nn
 __all__ = ["OPS", "RAW_OP_CLASSES", "ResNetBasicblock", "SearchSpaceNames"]
 
 OPS = {
+    'sep_conv_3x3' : lambda C_in, C_out, stride, affine: SepConv(C_in, C_out, 3, stride, 1, affine=affine),
+    'sep_conv_5x5' : lambda C_in, C_out, stride, affine: SepConv(C_in, C_out, 5, stride, 2, affine=affine),
     "none": lambda C_in, C_out, stride, affine, track_running_stats: Zero(
         C_in, C_out, stride
     ),

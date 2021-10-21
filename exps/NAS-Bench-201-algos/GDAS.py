@@ -545,7 +545,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_config",
         type=str,
-        default='../../configs\search-archs\GDASFRC-NASNet-CIFAR.config',
+        default='../../configs\search-archs\GDAS-NASNet-CIFAR.config',
         help="The path of the model configuration. When this arg is set, it will cover max_nodes / channels / num_cells.",
     )
     # architecture leraning rate
@@ -571,7 +571,7 @@ if __name__ == "__main__":
         help="number of data loading workers (default: 2)",
     )
     parser.add_argument(
-        "--save_dir", type=str, default = './output/search-cell-{}/GDAS-FRC-{}-BN{}'.format(space, dataset, track_running_stats), help="Folder to save checkpoints and log."
+        "--save_dir", type=str, default = './output/search-cell-{}/GDAS-{}-BN{}'.format(space, dataset, track_running_stats), help="Folder to save checkpoints and log."
     )
     parser.add_argument(
         "--arch_nas_dataset",
