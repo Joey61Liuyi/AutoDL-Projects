@@ -26,8 +26,6 @@ from xautodl.log_utils import AverageMeter, time_string, convert_secs2time
 from xautodl.models import get_cell_based_tiny_net, get_search_spaces
 from nas_201_api import NASBench201API as API
 from torch.utils.data import Dataset
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
 from dloptimizer import dlOptimizer
 import copy
 import warnings
@@ -513,9 +511,9 @@ def main(xargs):
 
 if __name__ == "__main__":
 
-    dataset = 'cifar100'
+    dataset = 'cifar10'
     import wandb
-    wandb.init(project="Federated_NAS", name='{}_Fednas'.format(dataset))
+    wandb.init(project="Dirichlet_pFedNAS", name='{}_pFedNAS'.format(dataset))
     space = 'darts'
     track_running_stats = 1
     parser = argparse.ArgumentParser("GDAS")
@@ -583,7 +581,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
-    parser.add_argument("--personalize_arch", type=bool, default=False, help="local_epochs for edge nodes")
+    parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
     parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
     parser.add_argument("--baseline", type =str, default = None, help = "type of baseline")
     parser.add_argument("--rand_seed", type=int, default=61, help="manual seed")

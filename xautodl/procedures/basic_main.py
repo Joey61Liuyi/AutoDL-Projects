@@ -7,7 +7,6 @@ import os, sys, time, torch
 from xautodl.log_utils import AverageMeter, time_string
 from .eval_funcs import obtain_accuracy
 
-
 def basic_train(
     xloader,
     network,

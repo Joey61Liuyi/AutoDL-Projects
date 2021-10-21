@@ -256,7 +256,6 @@ def main(args):
 
 
 
-
     # if last_info.exists():  # automatically resume from previous checkpoint
     #     logger.log(
     #         "=> loading checkpoint of the last-info '{:}' start".format(last_info)
