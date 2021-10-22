@@ -83,11 +83,11 @@ def procedure(
         raise ValueError("The mode is not right : {:}".format(mode))
 
     # logger.log('[{:5s}] config ::  auxiliary={:}, message={:}'.format(mode, config.auxiliary if hasattr(config, 'auxiliary') else -1, network.module.get_message()))
-    logger.log(
-        "[{:5s}] config ::  auxiliary={:}".format(
-            mode, config.auxiliary if hasattr(config, "auxiliary") else -1
-        )
-    )
+    # logger.log(
+    #     "[{:5s}] config ::  auxiliary={:}".format(
+    #         mode, config.auxiliary if hasattr(config, "auxiliary") else -1
+    #     )
+    # )
     end = time.time()
     for epoch in range(local_epoch):
         for i, (inputs, targets) in enumerate(xloader):

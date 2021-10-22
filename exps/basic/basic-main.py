@@ -238,11 +238,12 @@ def main(args):
         logger.log(genotype_list)
 
         base_model_list = {}
-
         for user in range(user_num):
             base_model_list[user] = obtain_model(model_config, genotype_list[user])
             flop, param = get_model_infos(base_model_list[user], xshape)
             logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
+            wandb.watch(base_model_list[user])
+
         # base_model = obtain_model(model_config, args.extra_model_path)
     elif args.model_source == "Densenet":
         base_model_list = {}
@@ -266,7 +267,7 @@ def main(args):
     criterion_list = {}
     for user in range(user_num):
         flop, param = get_model_infos(base_model_list[user], xshape)
-        logger.log("model ====>>>>:\n{:}".format(base_model_list[user]))
+        # logger.log("model ====>>>>:\n{:}".format(base_model_list[user]))
         # logger.log("model information : {:}".format(base_model_list[user].get_message()))
         logger.log("-" * 50)
         logger.log(
@@ -277,8 +278,8 @@ def main(args):
         logger.log("-" * 50)
         optimizer_list[user], scheduler_list[user], criterion_list[user] = get_optim_scheduler(base_model_list[user].parameters(), optim_config)
 
-        logger.log("User{}, train_data : {:}".format(user, train_data[user]))
-        logger.log("User{}, valid_data : {:}".format(user, valid_data[user]))
+        # logger.log("User{}, train_data : {:}".format(user, train_data[user]))
+        # logger.log("User{}, valid_data : {:}".format(user, valid_data[user]))
         # optimizer, scheduler, criterion = get_optim_scheduler(
         #     base_model.parameters(), optim_config
         # )
@@ -550,7 +551,7 @@ class Config():
             base = 'CIFAR'
         self.model_config = './NAS-{}-none.config'.format(base)
         self.optim_config = './NAS-{}.config'.format(base)
-        self.extra_model_path = 'DARTS'
+        self.extra_model_path = 'GDAS_V1'
         self.procedure = 'basic'
         self.save_dir = './output/nas-infer/{}-BS{}-{}'.format(self.dataset, self.batch, self.extra_model_path)
         self.cut_out_length = 16
@@ -562,7 +563,7 @@ class Config():
         self.personalization_methods = "Fedavg"
         self.wandb_project = "Dirichlet_Federated_NAS_inference"
         # self.run_name = "{}-{}".format(self.model_source, self.dataset)
-        self.run_name = "{}-{}-{}".format(self.model_source, self.personalization_methods, self.dataset)
+        self.run_name = "{}-{}-{}".format(self.extra_model_path, self.personalization_methods, self.dataset)
         self.resume_str = None
 
 
