@@ -560,9 +560,10 @@ class Config():
         self.print_freq_eval = 1000
         self.logits_aggregation = False
         self.personalization_methods = "Fedavg"
-        self.wandb_project = "Federated_NAS_inference"
+        self.wandb_project = "Dirichlet_Federated_NAS_inference"
         # self.run_name = "{}-{}".format(self.model_source, self.dataset)
         self.run_name = "{}-{}-{}".format(self.model_source, self.personalization_methods, self.dataset)
+        self.resume_str = None
 
 
 if __name__ == "__main__":
@@ -570,7 +571,7 @@ if __name__ == "__main__":
     # torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=False)
     config = Config()
     import wandb
-    wandb.init(project=config.wandb_project, name=config.run_name, resume = True)
+    wandb.init(project=config.wandb_project, name=config.run_name, resume = config.resume_str)
     parser = argparse.ArgumentParser(
         description="Train a classification model on typical image classification datasets.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
