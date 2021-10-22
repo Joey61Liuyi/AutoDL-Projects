@@ -559,9 +559,10 @@ class Config():
         self.print_freq = 500
         self.print_freq_eval = 1000
         self.logits_aggregation = False
+        self.personalization_methods = "Fedavg"
         self.wandb_project = "Federated_NAS_inference"
         # self.run_name = "{}-{}".format(self.model_source, self.dataset)
-        self.run_name = "{}-{}".format("debugging", self.dataset)
+        self.run_name = "{}-{}-{}".format(self.model_source, self.personalization_methods, self.dataset)
 
 
 if __name__ == "__main__":

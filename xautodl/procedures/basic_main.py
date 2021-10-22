@@ -39,7 +39,7 @@ def basic_valid(
     xloader, network, criterion, optim_config, extra_info, print_freq, logger
 ):
     with torch.no_grad():
-        loss, acc1, acc5, _ = procedure(
+        loss, acc1, acc5= procedure(
             xloader,
             network,
             criterion,
