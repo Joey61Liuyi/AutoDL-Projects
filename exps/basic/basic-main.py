@@ -336,7 +336,7 @@ def main(args):
         for user in base_model_list:
             base_model_list[user].load_state_dict(checkpoint["model_{}".format(user)])
             optimizer_list[user].load_state_dict(checkpoint["optimizer_{}".format(user)])
-            scheduer_list[user].load_state_dict(checkpoint["scheduler_{}".format(user)])
+            scheduler_list[user].load_state_dict(checkpoint["scheduler_{}".format(user)])
         valid_accuracies = checkpoint["valid_accuracies"]
         logger.log(
             "=> loading checkpoint from '{:}' start with {:}-th epoch.".format(
@@ -544,7 +544,7 @@ def main(args):
 class Config():
     def __init__(self):
         self.dataset = 'cifar10'
-        self.batch = 96
+        self.batch = 48
         self.datapath = '../../../data/{}'.format(self.dataset)
         self.model_source = 'autodl-searched'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
