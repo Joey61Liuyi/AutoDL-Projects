@@ -39,10 +39,15 @@ def average_weights(w):
     return w_avg
 
 
-def partial_average_weights(w):
+def partial_average_weights(base_model_list):
     """
     Returns the average of the weights.
     """
+    w = {}
+
+    for one in base_model_list:
+        w[one] = base_model_list[one].state_dict()
+
     keys_list = {}
     key_set = set()
     tep_dict = {}
@@ -73,7 +78,11 @@ def partial_average_weights(w):
         for key in w[user]:
             shape = w[user][key].shape
             w[user][key] = tep_dict[key][shape]
-    return w
+
+    for user in base_model_list:
+        base_model_list[one].load_state_dict(w[user])
+
+    return base_model_list
 
 
 
@@ -255,7 +264,6 @@ def main(args):
     optimizer_list = {}
     scheduler_list = {}
     criterion_list = {}
-    state_dict_list = {}
     for user in range(user_num):
         flop, param = get_model_infos(base_model_list[user], xshape)
         logger.log("model ====>>>>:\n{:}".format(base_model_list[user]))
@@ -280,7 +288,6 @@ def main(args):
         # base_model_list[user], criterion_list[user] = torch.nn.DataParallel(base_model[user]).cuda(), criterion_list[user].cuda()
         criterion_list[user] = criterion_list[user].cuda()
         base_model_list[user] = base_model_list[user].cuda()
-        state_dict_list[user] = base_model_list[user].state_dict()
 
     last_info, model_base_path, model_best_path = (
         logger.path("info"),
@@ -290,49 +297,51 @@ def main(args):
 
 
 
-    # if last_info.exists():  # automatically resume from previous checkpoint
-    #     logger.log(
-    #         "=> loading checkpoint of the last-info '{:}' start".format(last_info)
-    #     )
-    #     last_infox = torch.load(last_info)
-    #     start_epoch = last_infox["epoch"] + 1
-    #     last_checkpoint_path = last_infox["last_checkpoint"]
-    #     if not last_checkpoint_path.exists():
-    #         logger.log(
-    #             "Does not find {:}, try another path".format(last_checkpoint_path)
-    #         )
-    #         last_checkpoint_path = (
-    #             last_info.parent
-    #             / last_checkpoint_path.parent.name
-    #             / last_checkpoint_path.name
-    #         )
-    #     checkpoint = torch.load(last_checkpoint_path)
-    #     base_model.load_state_dict(checkpoint["base-model"])
-    #     scheduler.load_state_dict(checkpoint["scheduler"])
-    #     optimizer.load_state_dict(checkpoint["optimizer"])
-    #     valid_accuracies = checkpoint["valid_accuracies"]
-    #     max_bytes = checkpoint["max_bytes"]
-    #     logger.log(
-    #         "=> loading checkpoint of the last-info '{:}' start with {:}-th epoch.".format(
-    #             last_info, start_epoch
-    #         )
-    #     )
-    # elif args.resume is not None:
-    #     assert Path(args.resume).exists(), "Can not find the resume file : {:}".format(
-    #         args.resume
-    #     )
-    #     checkpoint = torch.load(args.resume)
-    #     start_epoch = checkpoint["epoch"] + 1
-    #     base_model.load_state_dict(checkpoint["base-model"])
-    #     scheduler.load_state_dict(checkpoint["scheduler"])
-    #     optimizer.load_state_dict(checkpoint["optimizer"])
-    #     valid_accuracies = checkpoint["valid_accuracies"]
-    #     max_bytes = checkpoint["max_bytes"]
-    #     logger.log(
-    #         "=> loading checkpoint from '{:}' start with {:}-th epoch.".format(
-    #             args.resume, start_epoch
-    #         )
-    #     )
+    if last_info.exists():  # automatically resume from previous checkpoint
+        logger.log(
+            "=> loading checkpoint of the last-info '{:}' start".format(last_info)
+        )
+        last_infox = torch.load(last_info)
+        start_epoch = last_infox["epoch"] + 1
+        last_checkpoint_path = last_infox["last_checkpoint"]
+        if not last_checkpoint_path.exists():
+            logger.log(
+                "Does not find {:}, try another path".format(last_checkpoint_path)
+            )
+            last_checkpoint_path = (
+                last_info.parent
+                / last_checkpoint_path.parent.name
+                / last_checkpoint_path.name
+            )
+        checkpoint = torch.load(last_checkpoint_path)
+
+        for user in base_model_list:
+            base_model_list[user].load_state_dict(checkpoint["model_{}".format(user)])
+            optimizer_list[user].load_state_dict(checkpoint["optimizer_{}".format(user)])
+            scheduler_list[user].load_state_dict(checkpoint["scheduler_{}".format(user)])
+        valid_accuracies = checkpoint["valid_accuracies"]
+        logger.log(
+            "=> loading checkpoint of the last-info '{:}' start with {:}-th epoch.".format(
+                last_info, start_epoch
+            )
+        )
+        del(checkpoint)
+    elif args.resume is not None:
+        assert Path(args.resume).exists(), "Can not find the resume file : {:}".format(
+            args.resume
+        )
+        checkpoint = torch.load(args.resume)
+        start_epoch = checkpoint["epoch"] + 1
+        for user in base_model_list:
+            base_model_list[user].load_state_dict(checkpoint["model_{}".format(user)])
+            optimizer_list[user].load_state_dict(checkpoint["optimizer_{}".format(user)])
+            scheduer_list[user].load_state_dict(checkpoint["scheduler_{}".format(user)])
+        valid_accuracies = checkpoint["valid_accuracies"]
+        logger.log(
+            "=> loading checkpoint from '{:}' start with {:}-th epoch.".format(
+                args.resume, start_epoch
+            )
+        )
     # elif args.init_model is not None:
     #     assert Path(
     #         args.init_model
@@ -341,11 +350,9 @@ def main(args):
     #     base_model.load_state_dict(checkpoint["base-model"])
     #     start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
     #     logger.log("=> initialize the model from {:}".format(args.init_model))
-    # else:
-    #     logger.log("=> do not find the last-info file : {:}".format(last_info))
-    #     start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
-
-    start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
+    else:
+        logger.log("=> do not find the last-info file : {:}".format(last_info))
+        start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
     train_func, valid_func = get_procedures(args.procedure)
     total_epoch = optim_config.epochs + optim_config.warmup
     local_epoch = 3
@@ -358,9 +365,7 @@ def main(args):
             Logits_aggregation_func(alignment_loader, base_model_list, optimizer_list, logger, 3)
 
         else:
-            state_dict_list = partial_average_weights(state_dict_list)
-            for user in scheduler_list:
-                base_model_list[user].load_state_dict(state_dict_list[user])
+            base_model_list = partial_average_weights(base_model_list)
 
         for user in scheduler_list:
             scheduler_list[user].update(epoch, 0.0)
@@ -387,7 +392,7 @@ def main(args):
         test_accuracy5_list = []
 
         for user in train_loader_list:
-            train_loss, train_acc1, train_acc5, state_dict_list[user] = train_func(
+            train_loss, train_acc1, train_acc5 = train_func(
                 train_loader_list[user],
                 base_model_list[user],
                 criterion_list[user],
@@ -418,7 +423,7 @@ def main(args):
                     args.print_freq_eval,
                     logger,
                 )
-            valid_accuracies[epoch] = valid_acc1
+
             logger.log(
                 "Important: User {}: ***{:s}*** VALID [{:}] loss = {:.6f}, accuracy@1 = {:.2f}, accuracy@5 = {:.2f} | Best-Valid-Acc@1={:.2f}, Error@1={:.2f}".format(
                     user,
@@ -431,19 +436,7 @@ def main(args):
                     100 - valid_accuracies["best"],
                 )
             )
-            if valid_acc1 > valid_accuracies["best"]:
-                valid_accuracies["best"] = valid_acc1
-                find_best = True
-                logger.log(
-                    "Currently, the best validation accuracy found at {:03d}-epoch :: acc@1={:.2f}, acc@5={:.2f}, error@1={:.2f}, error@5={:.2f}, save into {:}.".format(
-                        epoch,
-                        valid_acc1,
-                        valid_acc5,
-                        100 - valid_acc1,
-                        100 - valid_acc5,
-                        model_best_path,
-                    )
-                )
+
             test_accuracy1_list.append(valid_acc1)
             test_accuracy5_list.append(valid_acc5)
             info_dict = {
@@ -456,6 +449,23 @@ def main(args):
                          "epoch": epoch
                          }
             wandb.log(info_dict)
+
+
+        if np.average(test_accuracy1_list) > valid_accuracies["best"]:
+            valid_accuracies["best"] = np.average(test_accuracy1_list)
+            find_best = True
+            logger.log(
+                "Currently, the best validation accuracy found at {:03d}-epoch :: acc@1={:.2f}, acc@5={:.2f}, error@1={:.2f}, error@5={:.2f}, save into {:}.".format(
+                    epoch,
+                    valid_acc1,
+                    valid_acc5,
+                    100 - valid_acc1,
+                    100 - valid_acc5,
+                    model_best_path,
+                )
+            )
+
+        valid_accuracies[epoch] = np.average(test_accuracy1_list)
         info_dict = {
                      "average_valid_top1_acc": np.average(test_accuracy1_list),
                      "average_valid_top5_acc": np.average(test_accuracy5_list),
@@ -463,51 +473,57 @@ def main(args):
                      }
         wandb.log(info_dict)
 
-            # num_bytes = (
-            #     torch.cuda.max_memory_cached(next(network.parameters()).device) * 1.0
-            # )
-            # logger.log(
-            #     "[GPU-Memory-Usage on {:} is {:} bytes, {:.2f} KB, {:.2f} MB, {:.2f} GB.]".format(
-            #         next(network.parameters()).device,
-            #         int(num_bytes),
-            #         num_bytes / 1e3,
-            #         num_bytes / 1e6,
-            #         num_bytes / 1e9,
-            #     )
-            # )
-            # max_bytes[epoch] = num_bytes
+        # num_bytes = (
+        #     torch.cuda.max_memory_cached(next(network.parameters()).device) * 1.0
+        # )
+        # logger.log(
+        #     "[GPU-Memory-Usage on {:} is {:} bytes, {:.2f} KB, {:.2f} MB, {:.2f} GB.]".format(
+        #         next(network.parameters()).device,
+        #         int(num_bytes),
+        #         num_bytes / 1e3,
+        #         num_bytes / 1e6,
+        #         num_bytes / 1e9,
+        #     )
+        # )
+        # max_bytes[epoch] = num_bytes
         if epoch % 10 == 0:
             torch.cuda.empty_cache()
 
         # save checkpoint
-        # save_path = save_checkpoint(
-        #     {
-        #         "epoch": epoch,
-        #         "args": deepcopy(args),
-        #         "max_bytes": deepcopy(max_bytes),
-        #         "FLOP": flop,
-        #         "PARAM": param,
-        #         "valid_accuracies": deepcopy(valid_accuracies),
-        #         "model-config": model_config._asdict(),
-        #         "optim-config": optim_config._asdict(),
-        #         "base-model": base_model.state_dict(),
-        #         "scheduler": scheduler.state_dict(),
-        #         "optimizer": optimizer.state_dict(),
-        #     },
-        #     model_base_path,
-        #     logger,
-        # )
-        # if find_best:
-        #     copy_checkpoint(model_base_path, model_best_path, logger)
-        # last_info = save_checkpoint(
-        #     {
-        #         "epoch": epoch,
-        #         "args": deepcopy(args),
-        #         "last_checkpoint": save_path,
-        #     },
-        #     logger.path("info"),
-        #     logger,
-        # )
+
+
+        checkpoint_dict = {
+                "epoch": epoch,
+                "args": deepcopy(args),
+                "FLOP": flop,
+                "PARAM": param,
+                "model_source":args.model_source,
+                "valid_accuracies": deepcopy(valid_accuracies),
+                "model-config": model_config._asdict(),
+                "optim-config": optim_config._asdict()
+        }
+        for user in base_model_list:
+            checkpoint_dict["model_{}".format(user)] = base_model_list[user].state_dict()
+            checkpoint_dict["scheduler_{}".format(user)] = scheduler_list[user].state_dict()
+            checkpoint_dict["optimizer_{}".format(user)] = optimizer_list[user].state_dict()
+
+
+        save_path = save_checkpoint(checkpoint_dict, model_base_path, logger)
+
+        del(checkpoint_dict)
+
+        if find_best:
+            copy_checkpoint(model_base_path, model_best_path, logger)
+
+        last_info = save_checkpoint(
+            {
+                "epoch": epoch,
+                "args": deepcopy(args),
+                "last_checkpoint": save_path,
+            },
+            logger.path("info"),
+            logger,
+        )
 
         # measure elapsed time
         epoch_time.update(time.time() - start_time)
@@ -536,7 +552,7 @@ class Config():
         self.optim_config = './NAS-{}.config'.format(base)
         self.extra_model_path = 'DARTS'
         self.procedure = 'basic'
-        self.save_dir = './output/nas-infer/{}-BS{}-gdas-searched'.format(self.dataset, self.batch)
+        self.save_dir = './output/nas-infer/{}-BS{}-{}'.format(self.dataset, self.batch, self.extra_model_path)
         self.cut_out_length = 16
         self.workers = 4
         self.seed = 666
@@ -553,7 +569,7 @@ if __name__ == "__main__":
     # torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=False)
     config = Config()
     import wandb
-    wandb.init(project=config.wandb_project, name=config.run_name)
+    wandb.init(project=config.wandb_project, name=config.run_name, resume = True)
     parser = argparse.ArgumentParser(
         description="Train a classification model on typical image classification datasets.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,

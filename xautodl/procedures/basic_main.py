@@ -19,7 +19,7 @@ def basic_train(
     logger,
     local_epoch,
 ):
-    loss, acc1, acc5, state_dict = procedure(
+    loss, acc1, acc5 = procedure(
         xloader,
         network,
         criterion,
@@ -32,7 +32,7 @@ def basic_train(
         logger,
         local_epoch
     )
-    return loss, acc1, acc5, state_dict
+    return loss, acc1, acc5
 
 
 def basic_valid(
@@ -160,4 +160,4 @@ def procedure(
             loss=losses.avg,
         )
     )
-    return losses.avg, top1.avg, top5.avg, network.state_dict()
+    return losses.avg, top1.avg, top5.avg
