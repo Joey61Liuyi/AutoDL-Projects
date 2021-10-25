@@ -208,11 +208,6 @@ def main(args):
     elif args.model_source == "autodl-searched":
         import ast
         import re
-
-        file_proposal1 = '../../exps/NAS-Bench-201-algos/FedNAS_Search_darts.log'
-        file_proposal = '../../exps/NAS-Bench-201-algos/Ours_Search_darts.log'
-        # file_proposal = '../../exps/NAS-Bench-201-algos/FedNAS_128.log'
-
         file_proposal = args.extra_model_path
         genotype_list = {}
 
@@ -231,15 +226,19 @@ def main(args):
                             if 'skip_connect' in k[0]:
                                 count += 1
                     if count == 2:
+                        # if user%5 not in genotype_list:
+                        # logger.log("user{}'s architecture is chosen from epoch {}".format(user%5, user//5))
                         genotype_list[user % 5] = tep_dict
-                        user_list[user % 5] = user / 5
+                        user_list[user % 5] = user // 5
                     user += 1
 
+            for user in user_list:
+                logger.log("user{}'s architecture is chosen from epoch {}".format(user, user_list[user]))
         logger.log(genotype_list)
 
         base_model_list = {}
         for user in range(user_num):
-            base_model_list[user] = obtain_model(model_config, genotype_list[user])
+            base_model_list[user] = obtain_model(model_config, genotype_list[0])
             flop, param = get_model_infos(base_model_list[user], xshape)
             logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
             wandb.watch(base_model_list[user])
@@ -544,14 +543,14 @@ def main(args):
 class Config():
     def __init__(self):
         self.dataset = 'cifar10'
-        self.batch = 48
+        self.batch = 96
         self.datapath = '../../../data/{}'.format(self.dataset)
         self.model_source = 'autodl-searched'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
             base = 'CIFAR'
         self.model_config = './NAS-{}-none.config'.format(base)
         self.optim_config = './NAS-{}.config'.format(base)
-        self.extra_model_path = 'GDAS_V1'
+        self.extra_model_path = './Dirichlet_pFedNAS.log'
         self.procedure = 'basic'
         self.save_dir = './output/nas-infer/{}-BS{}-{}'.format(self.dataset, self.batch, self.extra_model_path)
         self.cut_out_length = 16
@@ -563,8 +562,8 @@ class Config():
         self.personalization_methods = "Fedavg"
         self.wandb_project = "Dirichlet_Federated_NAS_inference"
         # self.run_name = "{}-{}".format(self.model_source, self.dataset)
-        self.run_name = "{}-{}-{}".format(self.extra_model_path, self.personalization_methods, self.dataset)
-        self.resume_str = None
+        self.run_name = "{}-model0-early-stop-{}-{}".format(self.extra_model_path, self.personalization_methods, self.dataset)
+        self.resume_str = '10cce8kc'
 
 
 if __name__ == "__main__":
