@@ -336,7 +336,7 @@ def main(args):
         for user in base_model_list:
             base_model_list[user].load_state_dict(checkpoint["model_{}".format(user)])
             optimizer_list[user].load_state_dict(checkpoint["optimizer_{}".format(user)])
-            scheduer_list[user].load_state_dict(checkpoint["scheduler_{}".format(user)])
+            scheduler_list[user].load_state_dict(checkpoint["scheduler_{}".format(user)])
         valid_accuracies = checkpoint["valid_accuracies"]
         logger.log(
             "=> loading checkpoint from '{:}' start with {:}-th epoch.".format(
@@ -356,7 +356,7 @@ def main(args):
         start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
     train_func, valid_func = get_procedures(args.procedure)
     total_epoch = optim_config.epochs + optim_config.warmup
-    local_epoch = 3
+    local_epoch = args.local_epoch
     # Main Training and Evaluation Loop
     start_time = time.time()
     epoch_time = AverageMeter()
@@ -545,6 +545,7 @@ class Config():
     def __init__(self):
         self.dataset = 'cifar10'
         self.batch = 96
+        self.local_epoch = 3
         self.datapath = '../../../data/{}'.format(self.dataset)
         self.model_source = 'autodl-searched'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
@@ -638,6 +639,9 @@ if __name__ == "__main__":
     # Optimization options
     parser.add_argument(
         "--batch_size", type=int, default=config.batch, help="Batch size for training."
+    )
+    parser.add_argument(
+        "--local_epoch", type=int, default=config.local_epoch, help="Local Epoch"
     )
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:

@@ -83,7 +83,7 @@ class CosineAnnealingLR(_LRScheduler):
         for base_lr in self.base_lrs:
             if (
                 self.current_epoch >= self.warmup_epochs
-                and self.current_epoch < self.max_epochs
+                # and self.current_epoch < self.max_epochs
             ):
                 last_epoch = self.current_epoch - self.warmup_epochs
                 # if last_epoch < self.T_max:
@@ -96,8 +96,8 @@ class CosineAnnealingLR(_LRScheduler):
                 )
                 # else:
                 #  lr = self.eta_min + (base_lr - self.eta_min) * (1 + math.cos(math.pi * (self.T_max-1.0) / self.T_max)) / 2
-            elif self.current_epoch >= self.max_epochs:
-                lr = self.eta_min
+            # elif self.current_epoch >= self.max_epochs:
+            #     lr = self.eta_min
             else:
                 lr = (
                     self.current_epoch / self.warmup_epochs
