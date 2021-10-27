@@ -52,7 +52,8 @@ def average_weights(w, arch_personalization):
     Returns the average of the weights.
     """
     w_avg = copy.deepcopy(w[0])
-    arch_result = {}
+    arch_normal_result = {}
+    arch_reduce_result = {}
     for key in w_avg.keys():
         for i in range(1, len(w)):
             w_avg[key] += w[i][key]
@@ -60,9 +61,11 @@ def average_weights(w, arch_personalization):
     # result = [copy.deepcopy(w_avg) for _ in range(len(w))]
     if arch_personalization:
         for i in range(0, len(w)):
-            arch_result[i] = w[i]['arch_parameters']
+            arch_normal_result[i] = w[i]['arch_normal_parameters']
+            arch_reduce_result[i] = w[i]['arch_reduce_parameters']
 
-    return w_avg, arch_result
+
+    return w_avg, arch_normal_result, arch_reduce_result
 
 def search_func(
     xloader,
@@ -408,12 +411,13 @@ def main(xargs):
         wandb.log(info_dict)
 
         arch_personalize = args.personalize_arch
-        weight_average, arch_list = average_weights(weight_list, arch_personalize)
+        weight_average, arch_normal_list, arch_reduce_list = average_weights(weight_list, arch_personalize)
 
         for user in search_model:
             if arch_personalize:
                 tep = copy.deepcopy(weight_average)
-                tep['arch_parameters'] = arch_list[user]
+                tep['arch_normal_parameters'] = arch_normal_list[user]
+                tep['arch_reduce_parameters'] = arch_reduce_list[user]
                 search_model[user].load_state_dict(tep)
             else:
                 search_model[user].load_state_dict(weight_average)

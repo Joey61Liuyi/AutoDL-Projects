@@ -188,8 +188,9 @@ def get_cifar_models(config, extra_path=None):
                 xdata = torch.load(extra_path)
                 current_epoch = xdata["epoch"]
                 genotype = xdata["genotypes"][current_epoch - 1]
-
-            else:  # reload genotype by extra_path
+            elif isinstance(extra_path, dict):# reload genotype by extra_path
+                genotype = extra_path
+            else:
                 genotype = extra_path._asdict()
 
             C = config.C if hasattr(config, "C") else config.ichannel
