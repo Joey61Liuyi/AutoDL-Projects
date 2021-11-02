@@ -503,41 +503,42 @@ def get_nas_search_loaders(
         train_loader = {}
 
         for one in user_data:
-            if valid_use:
-                search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'],
-                                            user_data[one]['test'])
-                valid_loader[one] = torch.utils.data.DataLoader(
-                    xvalid_data,
-                    batch_size=test_batch,
-                    sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['test']),
-                    num_workers=workers,
-                    pin_memory=True,
-                )
-            else:
-                search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
-                valid_loader[one] = torch.utils.data.DataLoader(
-                    xvalid_data,
-                    batch_size=test_batch,
-                    sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['valid']),
-                    num_workers=workers,
-                    pin_memory=True,
-                )
+            if isinstance(one, int):
+                if valid_use:
+                    search_data = SearchDataset(dataset, [train_data, valid_data], user_data[one]['train'],
+                                                user_data[one]['test'])
+                    valid_loader[one] = torch.utils.data.DataLoader(
+                        xvalid_data,
+                        batch_size=test_batch,
+                        sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['test']),
+                        num_workers=workers,
+                        pin_memory=True,
+                    )
+                else:
+                    search_data = SearchDataset(dataset, train_data, user_data[one]['train'], user_data[one]['test'])
+                    valid_loader[one] = torch.utils.data.DataLoader(
+                        xvalid_data,
+                        batch_size=test_batch,
+                        sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['valid']),
+                        num_workers=workers,
+                        pin_memory=True,
+                    )
 
-            # data loader
-            search_loader[one] = torch.utils.data.DataLoader(
-                search_data,
-                batch_size=batch,
-                shuffle=True,
-                num_workers=workers,
-                pin_memory=True,
-            )
-            train_loader[one] = torch.utils.data.DataLoader(
-                train_data,
-                batch_size=batch,
-                sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['train']),
-                num_workers=workers,
-                pin_memory=True,
-            )
+                # data loader
+                search_loader[one] = torch.utils.data.DataLoader(
+                    search_data,
+                    batch_size=batch,
+                    shuffle=True,
+                    num_workers=workers,
+                    pin_memory=True,
+                )
+                train_loader[one] = torch.utils.data.DataLoader(
+                    train_data,
+                    batch_size=batch,
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(user_data[one]['train']),
+                    num_workers=workers,
+                    pin_memory=True,
+                )
     elif dataset == "ImageNet16-120":
         imagenet_test_split = load_config(
             "{:}/imagenet-16-120-test-split.txt".format(config_root), None, None
