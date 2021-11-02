@@ -2,7 +2,7 @@
 # @Time    : 2021/10/20 22:25
 # @Author  : LIU YI
 
-
+import numpy as np
 def data_partition(training_data, testing_data, alpha, user_num):
     idxs_train = np.arange(len(training_data))
     idxs_valid = np.arange(len(testing_data))

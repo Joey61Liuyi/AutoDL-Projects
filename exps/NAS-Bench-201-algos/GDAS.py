@@ -586,7 +586,7 @@ if __name__ == "__main__":
     parser.add_argument("--print_freq", type=int, default=200, help="print frequency (default: 200)")
     parser.add_argument("--local_epoch", type=int, default=5, help="local_epochs for edge nodes")
     parser.add_argument("--personalize_arch", type=bool, default=True, help="local_epochs for edge nodes")
-    parser.add_argument("--non_iid_level", type = float, default= 0.5, help="non_iid level settings")
+    parser.add_argument("--non_iid_level", type = float, default=0.5, help="non_iid level settings")
     parser.add_argument("--baseline", type =str, default = None, help = "type of baseline")
     parser.add_argument("--rand_seed", type=int, default=61, help="manual seed")
     args = parser.parse_args()

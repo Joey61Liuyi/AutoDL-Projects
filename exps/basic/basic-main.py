@@ -146,7 +146,7 @@ def main(args):
     )
 
     valid_use = False
-    user_data = np.load('../../exps/NAS-Bench-201-algos/Dirichlet_0.1_Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, args.dataset), allow_pickle=True).item()
+    user_data = np.load('../../exps/NAS-Bench-201-algos/Dirichlet_100000000_Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, args.dataset), allow_pickle=True).item()
     train_loader_list = {}
     valid_loader_list = {}
     # alignment_loader = torch.utils.data.DataLoader(
@@ -171,6 +171,7 @@ def main(args):
                                     DatasetSplit(train_data, user_data[user]['train']+user_data[user]['test']),
                                     batch_size=args.batch_size,
                                     shuffle=True,
+                                    drop_last=True,
                                     num_workers=args.workers,
                                     pin_memory=True,
                                 )
@@ -178,6 +179,7 @@ def main(args):
                                     DatasetSplit(valid_data, user_data[user]['valid']),
                                     batch_size=args.batch_size,
                                     shuffle=True,
+                                    drop_last=True,
                                     num_workers=args.workers,
                                     pin_memory=True,
                                 )
@@ -238,7 +240,7 @@ def main(args):
 
         base_model_list = {}
         for user in range(user_num):
-            base_model_list[user] = obtain_model(model_config, genotype_list[0])
+            base_model_list[user] = obtain_model(model_config, genotype_list[3])
             flop, param = get_model_infos(base_model_list[user], xshape)
             logger.log("The model of User {}: parm: {}, Flops: {}.".format(user, param, flop))
             wandb.watch(base_model_list[user])
@@ -294,8 +296,6 @@ def main(args):
         logger.path("model"),
         logger.path("best"),
     )
-
-
 
     if last_info.exists():  # automatically resume from previous checkpoint
         logger.log(
@@ -361,18 +361,55 @@ def main(args):
     epoch_time = AverageMeter()
     for epoch in range(start_epoch, total_epoch):
 
+        epoch_str = "epoch={:03d}/{:03d}".format(epoch, total_epoch)
+
+        test_accuracy1_list = []
+        test_accuracy5_list = []
+        for user in scheduler_list:
+            if (epoch % 1 == 0) or (epoch + 1 == total_epoch):
+                logger.log("-" * 150)
+                valid_loss, valid_acc1, valid_acc5 = valid_func(
+                    valid_loader_list[user],
+                    base_model_list[user],
+                    criterion_list[user],
+                    optim_config,
+                    epoch_str,
+                    args.print_freq_eval,
+                    logger,
+                )
+
+                logger.log(
+                    "Important: User {}: ***{:s}*** VALID [{:}] loss = {:.6f}, accuracy@1 = {:.2f}, accuracy@5 = {:.2f} | Best-Valid-Acc@1={:.2f}, Error@1={:.2f}".format(
+                        user,
+                        time_string(),
+                        epoch_str,
+                        valid_loss,
+                        valid_acc1,
+                        valid_acc5,
+                        valid_accuracies["best"],
+                        100 - valid_accuracies["best"],
+                    )
+                )
+
+                test_accuracy1_list.append(valid_acc1)
+                test_accuracy5_list.append(valid_acc5)
+
+
         if args.logits_aggregation:
             Logits_aggregation_func(alignment_loader, base_model_list, optimizer_list, logger, 3)
 
         else:
-            base_model_list = partial_average_weights(base_model_list)
+            tep_list = [model.state_dict() for model in base_model_list.values()]
+            global_state = average_weights(tep_list)
+            del(tep_list)
+            for one in base_model_list:
+                base_model_list[one].load_state_dict(global_state)
 
         for user in scheduler_list:
             scheduler_list[user].update(epoch, 0.0)
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.avg * (total_epoch - epoch), True)
         )
-        epoch_str = "epoch={:03d}/{:03d}".format(epoch, total_epoch)
         LRs = scheduler_list[0].get_lr()
         find_best = False
         # set-up drop-out ratio
@@ -388,8 +425,6 @@ def main(args):
 
         # train for one epoch
 
-        test_accuracy1_list = []
-        test_accuracy5_list = []
 
         for user in train_loader_list:
             train_loss, train_acc1, train_acc5 = train_func(
@@ -411,34 +446,6 @@ def main(args):
                 )
             )
 
-            # evaluate the performance
-            if (epoch % 1 == 0) or (epoch + 1 == total_epoch):
-                logger.log("-" * 150)
-                valid_loss, valid_acc1, valid_acc5 = valid_func(
-                    valid_loader_list[user],
-                    base_model_list[user],
-                    criterion_list[user],
-                    optim_config,
-                    epoch_str,
-                    args.print_freq_eval,
-                    logger,
-                )
-
-            logger.log(
-                "Important: User {}: ***{:s}*** VALID [{:}] loss = {:.6f}, accuracy@1 = {:.2f}, accuracy@5 = {:.2f} | Best-Valid-Acc@1={:.2f}, Error@1={:.2f}".format(
-                    user,
-                    time_string(),
-                    epoch_str,
-                    valid_loss,
-                    valid_acc1,
-                    valid_acc5,
-                    valid_accuracies["best"],
-                    100 - valid_accuracies["best"],
-                )
-            )
-
-            test_accuracy1_list.append(valid_acc1)
-            test_accuracy5_list.append(valid_acc5)
             info_dict = {
                          "{}user_train_loss".format(user): train_loss,
                          "{}user_train_top1".format(user): train_acc1,
@@ -544,28 +551,27 @@ class Config():
     def __init__(self):
         self.dataset = 'cifar10'
         self.batch = 96
-        self.local_epoch = 3
+        self.local_epoch = 1
         self.datapath = '../../../data/{}'.format(self.dataset)
         self.model_source = 'autodl-searched'
         if self.dataset == 'cifar10' or self.dataset == 'cifar100':
             base = 'CIFAR'
         self.model_config = './NAS-{}-none.config'.format(base)
         self.optim_config = './NAS-{}.config'.format(base)
-        self.extra_model_path = './Dirichlet_pFedNAS.log'
+        self.extra_model_path = 'DARTS'
         self.procedure = 'basic'
-        self.save_dir = './output/nas-infer/{}-BS{}-{}'.format(self.dataset, self.batch, self.extra_model_path)
+        self.save_dir = './output/nas-infer/{}-BS{}-{}-3'.format(self.dataset, self.batch, self.extra_model_path)
         self.cut_out_length = 16
         self.workers = 4
-        self.seed = 666
+        self.seed = -1
         self.print_freq = 500
         self.print_freq_eval = 1000
         self.logits_aggregation = False
         self.personalization_methods = "Fedavg"
         self.wandb_project = "Dirichlet_Federated_NAS_inference"
         # self.run_name = "{}-{}".format(self.model_source, self.dataset)
-        self.run_name = "{}-model0-early-stop-{}-{}".format(self.extra_model_path, self.personalization_methods, self.dataset)
-        self.resume_str = '10cce8kc'
-
+        self.run_name = "{}-model3-early-stop-{}-{}".format(self.extra_model_path, self.personalization_methods, self.dataset)
+        self.resume_str = None
 
 if __name__ == "__main__":
 

@@ -470,8 +470,10 @@ def get_nas_search_loaders(
     else:
         batch, test_batch = batch_size, batch_size
     if dataset == "cifar10" or dataset == 'cifar100' or dataset == 'mini-imagenet':
-        alpha = 0.1
+
         xvalid_data = deepcopy(train_data)
+        alpha = 0.5
+
         # random.seed(61)
         # np.random.seed(61)
         # user_data = {}
@@ -489,8 +491,7 @@ def get_nas_search_loaders(
         #
         # user_data["public"] = tep_public
         # np.save('Dirichlet_{}_Use_valid_{}_{}_non_iid_setting.npy'.format(alpha, valid_use, dataset), user_data)
-
-        user_data = np.load('Use_valid_{}_{}_non_iid_setting.npy'.format(valid_use, dataset),
+        user_data = np.load('Dirichlet_{}_Use_valid_{}_{}_non_iid_setting.npy'.format(alpha, valid_use, dataset),
                             allow_pickle=True).item()
 
         if hasattr(xvalid_data, "transforms"):  # to avoid a print issue

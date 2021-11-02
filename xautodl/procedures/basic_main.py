@@ -89,6 +89,7 @@ def procedure(
     #     )
     # )
     end = time.time()
+    loss_aux = None
     for epoch in range(local_epoch):
         for i, (inputs, targets) in enumerate(xloader):
             if mode == "train":
@@ -115,9 +116,9 @@ def procedure(
                 logits, logits_aux = logits, None
             loss = criterion(logits, targets)
 
-            if config is not None and hasattr(config, "auxiliary") and config.auxiliary > 0:
-                loss_aux = criterion(logits_aux, targets)
-                loss += config.auxiliary * loss_aux
+            # if loss_aux is not None and config is not None and hasattr(config, "auxiliary") and config.auxiliary > 0:
+            #     loss_aux = criterion(logits_aux, targets)
+            #     loss += config.auxiliary * loss_aux
 
             if mode == "train":
                 loss.backward()
